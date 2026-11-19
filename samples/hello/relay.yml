@@ -1,0 +1,5 @@
+version: 1
+server:
+  socket: ./r.sock
+storage:
+  path: ./relay.sqlite3

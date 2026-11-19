@@ -1,0 +1,12 @@
+version: 1
+server:
+  socket: ./r.sock
+storage:
+  path: ./relay.sqlite3
+queues:
+  - name: image.resize
+    max_attempts: 3
+    visibility_timeout_seconds: 30
+    dead_letter_queue: image.resize.failed
+  - name: image.resize.failed
+    max_attempts: 1

@@ -1,0 +1,12 @@
+version: 1
+server:
+  socket: ./r.sock
+storage:
+  path: ./relay.sqlite3
+queues:
+  - name: deployment.jobs
+    max_attempts: 3
+bindings:
+  - id: deployment-events
+    topic: build.completed
+    queue: deployment.jobs
