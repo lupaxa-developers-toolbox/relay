@@ -225,14 +225,11 @@ def test_unexpired_lease_survives_a_restart(workspace: Path) -> None:
     clock = ManualClock()
     config = _config(workspace)
     first = RunningBroker(config, now=clock)
-    worker = _worker(first.socket, "fast")
-    try:
+    with _worker(first.socket, "fast") as worker:
         worker.wait_ready()
         message_id = _enqueue(first.socket, "fast", {"n": 1})
         worker.take()
         first.stop()
-    finally:
-        worker.close()
     second = RunningBroker(config, now=clock)
     try:
         with _worker(second.socket, "fast", timeout=0.4) as early:
@@ -336,7 +333,7 @@ class _Worker:
         self._stop = threading.Event()
         self._paused = threading.Event()
         self._closed = False
-        self.error: BaseException | None = None
+        self.error: Exception | None = None
         self._name = name
         self._thread = threading.Thread(target=self._run, daemon=True)
         self._thread.start()
@@ -398,7 +395,7 @@ class _Worker:
                 self._resume.clear()
                 if self._stop.is_set():
                     break
-        except BaseException as exc:
+        except Exception as exc:
             self.error = exc
             self.ready.set()
         finally:

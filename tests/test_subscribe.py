@@ -255,7 +255,7 @@ class _Live:
         self._stop = threading.Event()
         self._paused = threading.Event()
         self._closed = False
-        self.error: BaseException | None = None
+        self.error: Exception | None = None
         self._pattern = pattern
         self._durable = durable
         self._start = start
@@ -333,7 +333,7 @@ class _Live:
                 self._resume.clear()
                 if self._stop.is_set():
                     break
-        except BaseException as exc:
+        except Exception as exc:
             self.error = exc
             self.ready.set()
         finally:

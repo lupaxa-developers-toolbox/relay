@@ -315,8 +315,10 @@ class Broker:
             await asyncio.wait_for(pump, 1)
         except TimeoutError:
             pump.cancel()
-            with contextlib.suppress(asyncio.CancelledError):
+            try:
                 await pump
+            except asyncio.CancelledError:
+                logger.debug("subscriber pump cancelled")
 
     def _detach(self, session: _Session) -> None:
         self._sessions.discard(session)

@@ -53,7 +53,7 @@ class RunningBroker:
         self.loop = asyncio.new_event_loop()
         self.broker = Broker(config, now=now)
         self.ready = threading.Event()
-        self.error: BaseException | None = None
+        self.error: Exception | None = None
         self.thread = threading.Thread(target=self._run, daemon=True)
         self.thread.start()
         if not self.ready.wait(5):
@@ -65,7 +65,7 @@ class RunningBroker:
         asyncio.set_event_loop(self.loop)
         try:
             self.loop.run_until_complete(self.broker.start())
-        except BaseException as exc:
+        except Exception as exc:
             self.error = exc
             self.ready.set()
             return
