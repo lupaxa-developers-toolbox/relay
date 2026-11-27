@@ -92,13 +92,7 @@ class AsyncJob:
 class AsyncDelivery:
     """One event pushed to an async subscriber."""
 
-    def __init__(
-        self,
-        client: AsyncRelayClient,
-        frame: dict[str, object],
-        *,
-        durable: bool,
-    ) -> None:
+    def __init__(self, client: AsyncRelayClient, frame: dict[str, object], *, durable: bool) -> None:
         self.delivery_id = _required_str(frame, "delivery_id")
         self.message_id = _required_str(frame, "message_id")
         self.sequence = _required_int(frame, "sequence")
@@ -118,16 +112,7 @@ class AsyncDelivery:
 class RelayClient:
     """A blocking client. One connection, no hidden retries."""
 
-    def __init__(
-        self,
-        socket_path: Path | None = None,
-        *,
-        socket: Path | None = None,
-        host: str | None = None,
-        port: int | None = None,
-        timeout: float = 5.0,
-        token: str | None = None,
-    ) -> None:
+    def __init__(self, socket_path: Path | None = None, *, socket: Path | None = None, host: str | None = None, port: int | None = None, timeout: float = 5.0, token: str | None = None) -> None:
         chosen = socket if socket is not None else socket_path
         if chosen is None and (host is None or port is None):
             raise ConnectionFailed("Pass a Unix socket or a TCP host and port.")
@@ -156,15 +141,7 @@ class RelayClient:
             self._sock.close()
             self._sock = None
 
-    def publish(
-        self,
-        topic: str,
-        data: object,
-        *,
-        headers: dict[str, object] | None = None,
-        content_type: str = "application/json",
-        idempotency_key: str | None = None,
-    ) -> PublishResult:
+    def publish(self, topic: str, data: object, *, headers: dict[str, object] | None = None, content_type: str = "application/json", idempotency_key: str | None = None) -> PublishResult:
         body: dict[str, object] = {
             "op": "publish",
             "request_id": self._next_id(),
@@ -192,18 +169,14 @@ class RelayClient:
         return self._roundtrip({"op": "status", "request_id": self._next_id()})
 
     def inspect(self, queue: str, limit: int = 50) -> list[dict[str, object]]:
-        frame = self._roundtrip(
-            {"op": "inspect", "request_id": self._next_id(), "queue": queue, "limit": limit}
-        )
+        frame = self._roundtrip({"op": "inspect", "request_id": self._next_id(), "queue": queue, "limit": limit})
         jobs = frame["jobs"]
         if not isinstance(jobs, list):
             raise ProtocolError("PROTOCOL_ERROR", "The inspect response has no jobs.")
         return [item for item in jobs if isinstance(item, dict)]
 
     def retry_job(self, message_id: str) -> dict[str, object]:
-        frame = self._roundtrip(
-            {"op": "retry", "request_id": self._next_id(), "message_id": message_id}
-        )
+        frame = self._roundtrip({"op": "retry", "request_id": self._next_id(), "message_id": message_id})
         job = frame["job"]
         if not isinstance(job, dict):
             raise ProtocolError("PROTOCOL_ERROR", "The retry response has no job.")
@@ -220,13 +193,7 @@ class RelayClient:
         frame = self._roundtrip(body)
         return _required_int(frame, "deleted")
 
-    def create_queue(
-        self,
-        queue: str,
-        *,
-        dead_letter_queue: str | None = None,
-        max_attempts: int | None = 5,
-    ) -> None:
+    def create_queue(self, queue: str, *, dead_letter_queue: str | None = None, max_attempts: int | None = 5) -> None:
         body: dict[str, object] = {
             "op": "queue_create",
             "request_id": self._next_id(),
@@ -269,24 +236,12 @@ class RelayClient:
         self._roundtrip({"op": "subscription_delete", "request_id": self._next_id(), "name": name})
 
     def message(self, message_id: str) -> dict[str, object]:
-        return self._roundtrip(
-            {"op": "message", "request_id": self._next_id(), "message_id": message_id}
-        )
+        return self._roundtrip({"op": "message", "request_id": self._next_id(), "message_id": message_id})
 
     def backup(self, path: Path) -> None:
-        self._roundtrip(
-            {"op": "backup", "request_id": self._next_id(), "path": str(path.resolve())}
-        )
+        self._roundtrip({"op": "backup", "request_id": self._next_id(), "path": str(path.resolve())})
 
-    def enqueue(
-        self,
-        queue: str,
-        data: object,
-        *,
-        idempotency_key: str | None = None,
-        content_type: str = "application/json",
-        headers: dict[str, object] | None = None,
-    ) -> str:
+    def enqueue(self, queue: str, data: object, *, idempotency_key: str | None = None, content_type: str = "application/json", headers: dict[str, object] | None = None) -> str:
         body: dict[str, object] = {
             "op": "enqueue",
             "request_id": self._next_id(),
@@ -300,13 +255,7 @@ class RelayClient:
         frame = self._roundtrip(body)
         return str(frame["message_id"])
 
-    def consume(
-        self,
-        queue: str,
-        *,
-        prefetch: int | None = None,
-        on_ready: Callable[[], None] | None = None,
-    ) -> Iterator[JobDelivery]:
+    def consume(self, queue: str, *, prefetch: int | None = None, on_ready: Callable[[], None] | None = None) -> Iterator[JobDelivery]:
         """Yield jobs from one queue. Each job stays leased until it is settled."""
         body: dict[str, object] = {
             "op": "consume",
@@ -326,16 +275,7 @@ class RelayClient:
                 raise ProtocolError(code, message)
             yield JobDelivery(self, nxt)
 
-    def settle_job(
-        self,
-        op: str,
-        delivery_id: str,
-        lease_token: str,
-        *,
-        requeue: bool = True,
-        reason: str | None = None,
-        seconds: int | None = None,
-    ) -> None:
+    def settle_job(self, op: str, delivery_id: str, lease_token: str, *, requeue: bool = True, reason: str | None = None, seconds: int | None = None) -> None:
         body: dict[str, object] = {
             "op": op,
             "request_id": self._next_id(),
@@ -351,14 +291,7 @@ class RelayClient:
         self._roundtrip(body)
 
     def subscribe(
-        self,
-        pattern: str,
-        *,
-        durable: str | None = None,
-        start: str = "latest",
-        sequence: int | None = None,
-        on_ready: Callable[[], None] | None = None,
-        gaps: list[GapNotice] | None = None,
+        self, pattern: str, *, durable: str | None = None, start: str = "latest", sequence: int | None = None, on_ready: Callable[[], None] | None = None, gaps: list[GapNotice] | None = None
     ) -> Iterator[GapNotice | Delivery]:
         """Yield events matching pattern. Durable subscribers must ack each one."""
         body: dict[str, object] = {
@@ -384,10 +317,7 @@ class RelayClient:
             nxt = self._read_frame()
             op = nxt.get("op")
             if op == "gap":
-                found = GapNotice(
-                    _required_int(nxt, "from_sequence"),
-                    _required_int(nxt, "to_sequence"),
-                )
+                found = GapNotice(_required_int(nxt, "from_sequence"), _required_int(nxt, "to_sequence"))
                 if gaps is not None:
                     gaps.append(found)
                 yield found
@@ -399,9 +329,7 @@ class RelayClient:
 
     def acknowledge(self, delivery_id: str) -> None:
         """Record that a durable delivery was processed."""
-        self._roundtrip(
-            {"op": "ack", "request_id": self._next_id(), "delivery_id": delivery_id},
-        )
+        self._roundtrip({"op": "ack", "request_id": self._next_id(), "delivery_id": delivery_id})
 
     def poll(self, timeout: float) -> dict[str, object] | None:
         """Return the next unread frame, or None when none arrives in time."""
@@ -466,10 +394,7 @@ class RelayClient:
             frame = self._take_frame()
             op = frame.get("op")
             if op == "error":
-                raise ProtocolError(
-                    str(frame.get("code", "PROTOCOL_ERROR")),
-                    str(frame.get("message")),
-                )
+                raise ProtocolError(str(frame.get("code", "PROTOCOL_ERROR")), str(frame.get("message")))
             if op in _UNSOLICITED:
                 self._pending.append(frame)
                 continue
@@ -511,15 +436,7 @@ class RelayClient:
 class AsyncRelayClient:
     """An asyncio client with the same publish, history, and status calls."""
 
-    def __init__(
-        self,
-        socket: Path | None = None,
-        *,
-        host: str | None = None,
-        port: int | None = None,
-        timeout: float = 5.0,
-        token: str | None = None,
-    ) -> None:
+    def __init__(self, socket: Path | None = None, *, host: str | None = None, port: int | None = None, timeout: float = 5.0, token: str | None = None) -> None:
         if socket is None and (host is None or port is None):
             raise ConnectionFailed("Pass a Unix socket or a TCP host and port.")
         self.socket = socket
@@ -534,16 +451,10 @@ class AsyncRelayClient:
 
     async def __aenter__(self) -> AsyncRelayClient:
         if self.socket is not None:
-            self._reader, self._writer = await asyncio.wait_for(
-                asyncio.open_unix_connection(str(self.socket)),
-                self.timeout,
-            )
+            self._reader, self._writer = await asyncio.wait_for(asyncio.open_unix_connection(str(self.socket)), self.timeout)
         else:
             assert self.host is not None and self.port is not None
-            self._reader, self._writer = await asyncio.wait_for(
-                asyncio.open_connection(self.host, self.port),
-                self.timeout,
-            )
+            self._reader, self._writer = await asyncio.wait_for(asyncio.open_connection(self.host, self.port), self.timeout)
         await self._roundtrip(self._hello())
         return self
 
@@ -553,15 +464,7 @@ class AsyncRelayClient:
             await self._writer.wait_closed()
             self._writer = None
 
-    async def publish(
-        self,
-        topic: str,
-        data: object,
-        *,
-        headers: dict[str, object] | None = None,
-        content_type: str = "application/json",
-        idempotency_key: str | None = None,
-    ) -> PublishResult:
+    async def publish(self, topic: str, data: object, *, headers: dict[str, object] | None = None, content_type: str = "application/json", idempotency_key: str | None = None) -> PublishResult:
         body: dict[str, object] = {
             "op": "publish",
             "request_id": self._next_id(),
@@ -575,12 +478,7 @@ class AsyncRelayClient:
         frame = await self._roundtrip(body)
         return PublishResult(str(frame["message_id"]), _required_int(frame, "sequence"))
 
-    async def consume(
-        self,
-        queue: str,
-        *,
-        on_ready: Callable[[], None] | None = None,
-    ) -> AsyncIterator[AsyncJob]:
+    async def consume(self, queue: str, *, on_ready: Callable[[], None] | None = None) -> AsyncIterator[AsyncJob]:
         """Yield jobs from one queue."""
         await self._roundtrip({"op": "consume", "request_id": self._next_id(), "queue": queue})
         if on_ready is not None:
@@ -592,13 +490,7 @@ class AsyncRelayClient:
             yield AsyncJob(nxt)
 
     async def subscribe(
-        self,
-        pattern: str,
-        *,
-        durable: str | None = None,
-        start: str = "latest",
-        sequence: int | None = None,
-        on_ready: Callable[[], None] | None = None,
+        self, pattern: str, *, durable: str | None = None, start: str = "latest", sequence: int | None = None, on_ready: Callable[[], None] | None = None
     ) -> AsyncIterator[GapNotice | AsyncDelivery]:
         """Yield events matching pattern."""
         body: dict[str, object] = {
@@ -622,10 +514,7 @@ class AsyncRelayClient:
             nxt = await self._read_frame()
             op = nxt.get("op")
             if op == "gap":
-                yield GapNotice(
-                    _required_int(nxt, "from_sequence"),
-                    _required_int(nxt, "to_sequence"),
-                )
+                yield GapNotice(_required_int(nxt, "from_sequence"), _required_int(nxt, "to_sequence"))
                 continue
             if op == "delivery":
                 yield AsyncDelivery(self, nxt, durable=is_durable)
@@ -634,9 +523,7 @@ class AsyncRelayClient:
 
     async def acknowledge(self, delivery_id: str) -> None:
         """Record that a durable delivery was processed."""
-        await self._roundtrip(
-            {"op": "ack", "request_id": self._next_id(), "delivery_id": delivery_id},
-        )
+        await self._roundtrip({"op": "ack", "request_id": self._next_id(), "delivery_id": delivery_id})
 
     def _hello(self) -> dict[str, object]:
         body: dict[str, object] = {
@@ -656,10 +543,7 @@ class AsyncRelayClient:
             frame = await self._take_frame()
             op = frame.get("op")
             if op == "error":
-                raise ProtocolError(
-                    str(frame.get("code", "PROTOCOL_ERROR")),
-                    str(frame.get("message")),
-                )
+                raise ProtocolError(str(frame.get("code", "PROTOCOL_ERROR")), str(frame.get("message")))
             if op in _UNSOLICITED:
                 self._pending.append(frame)
                 continue

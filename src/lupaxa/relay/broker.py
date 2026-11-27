@@ -137,11 +137,7 @@ class Broker:
             self._owned_lock = True
         except BrokerBusy:
             raise
-        storage = Storage(
-            self.config.database_path(),
-            durability=self.config.storage.durability,
-            now=self._now,
-        )
+        storage = Storage(self.config.database_path(), durability=self.config.storage.durability, now=self._now)
         self._storage = storage
         try:
             await storage.open()
@@ -206,38 +202,18 @@ class Broker:
             if raw:
                 self.tcp_port = int(raw[0].getsockname()[1])
 
-    def _on_unix(
-        self,
-        reader: asyncio.StreamReader,
-        writer: asyncio.StreamWriter,
-    ) -> None:
+    def _on_unix(self, reader: asyncio.StreamReader, writer: asyncio.StreamWriter) -> None:
         self._spawn(reader, writer, tcp=False)
 
-    def _on_tcp(
-        self,
-        reader: asyncio.StreamReader,
-        writer: asyncio.StreamWriter,
-    ) -> None:
+    def _on_tcp(self, reader: asyncio.StreamReader, writer: asyncio.StreamWriter) -> None:
         self._spawn(reader, writer, tcp=True)
 
-    def _spawn(
-        self,
-        reader: asyncio.StreamReader,
-        writer: asyncio.StreamWriter,
-        *,
-        tcp: bool,
-    ) -> None:
+    def _spawn(self, reader: asyncio.StreamReader, writer: asyncio.StreamWriter, *, tcp: bool) -> None:
         task = asyncio.create_task(self._session(reader, writer, tcp=tcp))
         self._tasks.add(task)
         task.add_done_callback(self._tasks.discard)
 
-    async def _session(
-        self,
-        reader: asyncio.StreamReader,
-        writer: asyncio.StreamWriter,
-        *,
-        tcp: bool,
-    ) -> None:
+    async def _session(self, reader: asyncio.StreamReader, writer: asyncio.StreamWriter, *, tcp: bool) -> None:
         session = _Session()
         session.writer = writer
         self._sessions.add(session)
@@ -247,29 +223,18 @@ class Broker:
         greeted = False
         try:
             if self._connections > self.config.server.max_connections:
-                await self._send(
-                    session,
-                    _error(None, "CAPACITY", "The broker is not accepting more connections."),
-                )
+                await self._send(session, _error(None, "CAPACITY", "The broker is not accepting more connections."))
                 return
             while not self._stopping:
                 frame = await self._read_frame(reader, inbound)
                 if frame is None or frame is _OVERFLOW:
                     if frame is _OVERFLOW:
-                        await self._send(
-                            session,
-                            _error(None, "FRAME_TOO_LARGE", "The frame exceeds the size limit."),
-                        )
+                        await self._send(session, _error(None, "FRAME_TOO_LARGE", "The frame exceeds the size limit."))
                     return
                 if not isinstance(frame, dict):
                     return
                 try:
-                    response, greeted = await self._dispatch(
-                        frame,
-                        greeted=greeted,
-                        tcp=tcp,
-                        session=session,
-                    )
+                    response, greeted = await self._dispatch(frame, greeted=greeted, tcp=tcp, session=session)
                 except Exception:
                     logger.exception("request failed")
                     response = _error(None, "STORAGE", "The broker could not handle the request.")
@@ -332,11 +297,7 @@ class Broker:
         async with session.send_lock:
             await session.outbound.put(_Outgoing(frame))
 
-    async def _read_frame(
-        self,
-        reader: asyncio.StreamReader,
-        inbound: bytearray,
-    ) -> dict[str, object] | None | object:
+    async def _read_frame(self, reader: asyncio.StreamReader, inbound: bytearray) -> dict[str, object] | None | object:
         limit = self.config.server.max_frame_kb * 1024
         timeout = self.config.server.idle_timeout_seconds
         while b"\n" not in inbound:
@@ -369,14 +330,7 @@ class Broker:
             }
         return parsed
 
-    async def _dispatch(
-        self,
-        frame: dict[str, object],
-        *,
-        greeted: bool,
-        tcp: bool,
-        session: _Session,
-    ) -> tuple[dict[str, object] | None, bool]:
+    async def _dispatch(self, frame: dict[str, object], *, greeted: bool, tcp: bool, session: _Session) -> tuple[dict[str, object] | None, bool]:
         if frame.get("op") == "error":
             return frame, greeted
         op = str(frame.get("op"))
@@ -386,10 +340,7 @@ class Broker:
             accepted = _hello_ok(frame, self.config, tcp=tcp)
             return self._hello(frame, request, tcp=tcp), accepted or greeted
         if not greeted:
-            return (
-                _error(request, "HELLO_REQUIRED", "Send hello before any other operation."),
-                False,
-            )
+            return (_error(request, "HELLO_REQUIRED", "Send hello before any other operation."), False)
         try:
             if op == "ping":
                 return {"op": "pong", "request_id": request}, True
@@ -448,20 +399,10 @@ class Broker:
         except UsageError as exc:
             return _error(request, "INVALID_MESSAGE", str(exc)), True
 
-    def _hello(
-        self,
-        frame: dict[str, object],
-        request: str | None,
-        *,
-        tcp: bool,
-    ) -> dict[str, object]:
+    def _hello(self, frame: dict[str, object], request: str | None, *, tcp: bool) -> dict[str, object]:
         if not _hello_ok(frame, self.config, tcp=tcp):
             if frame.get("protocol") != PROTOCOL:
-                return _error(
-                    request,
-                    "INCOMPATIBLE_PROTOCOL",
-                    f"This broker speaks protocol {PROTOCOL}.",
-                )
+                return _error(request, "INCOMPATIBLE_PROTOCOL", f"This broker speaks protocol {PROTOCOL}.")
             return _error(request, "UNAUTHORIZED", "The authentication token was rejected.")
         return {
             "op": "hello_ok",
@@ -471,12 +412,7 @@ class Broker:
             "server_version": __version__,
         }
 
-    async def _publish(
-        self,
-        frame: dict[str, object],
-        request: str | None,
-        session: _Session,
-    ) -> None:
+    async def _publish(self, frame: dict[str, object], request: str | None, session: _Session) -> None:
         storage = self._require_storage()
         topic = frame.get("topic")
         if not isinstance(topic, str):
@@ -498,11 +434,7 @@ class Broker:
         if key == "":
             raise ProtocolError("INVALID_MESSAGE", "idempotency_key must not be empty.")
         bound = [binding.queue for binding in self.config.bindings if binding.topic == topic]
-        limits = {
-            queue.name: queue.max_depth
-            for queue in self.config.queues
-            if queue.max_depth is not None and queue.name in bound
-        }
+        limits = {queue.name: queue.max_depth for queue in self.config.queues if queue.max_depth is not None and queue.name in bound}
         message_id, sequence, created, jobs = await storage.publish_event(
             topic=topic,
             data=data,
@@ -518,14 +450,7 @@ class Broker:
             for queue, job_id in jobs:
                 logger.info("bound event %s as job %s on %s", topic, job_id, queue)
             try:
-                await self._after_publish(
-                    topic=topic,
-                    message_id=message_id,
-                    sequence=sequence,
-                    data=data,
-                    headers=headers,
-                    content_type=content_type,
-                )
+                await self._after_publish(topic=topic, message_id=message_id, sequence=sequence, data=data, headers=headers, content_type=content_type)
             except Exception:
                 logger.exception("fan-out failed")
             for queue, _job_id in jobs:
@@ -543,42 +468,14 @@ class Broker:
             },
         )
 
-    async def _after_publish(
-        self,
-        *,
-        topic: str,
-        message_id: str,
-        sequence: int,
-        data: object,
-        headers: dict[str, object],
-        content_type: str,
-    ) -> None:
+    async def _after_publish(self, *, topic: str, message_id: str, sequence: int, data: object, headers: dict[str, object], content_type: str) -> None:
         storage = self._require_storage()
         retention = self.config.storage.retention.events
-        changed = await storage.apply_retention(
-            max_messages=retention.max_messages,
-            max_age_days=retention.max_age_days,
-        )
+        changed = await storage.apply_retention(max_messages=retention.max_messages, max_age_days=retention.max_age_days)
         await self._notify_gaps(changed)
-        await self._fanout(
-            topic=topic,
-            message_id=message_id,
-            sequence=sequence,
-            data=data,
-            headers=headers,
-            content_type=content_type,
-        )
+        await self._fanout(topic=topic, message_id=message_id, sequence=sequence, data=data, headers=headers, content_type=content_type)
 
-    async def _fanout(
-        self,
-        *,
-        topic: str,
-        message_id: str,
-        sequence: int,
-        data: object,
-        headers: dict[str, object],
-        content_type: str,
-    ) -> None:
+    async def _fanout(self, *, topic: str, message_id: str, sequence: int, data: object, headers: dict[str, object], content_type: str) -> None:
         limit = self.config.messaging.pubsub.max_unacknowledged
         noted: list[str] = []
         for session in list(self._sessions):
@@ -607,13 +504,7 @@ class Broker:
         storage = self._require_storage()
         for subscription in noted:
             try:
-                await storage.record_delivery(
-                    message_id=message_id,
-                    kind="event",
-                    action="deliver",
-                    subscription=subscription,
-                    counter="delivered_messages",
-                )
+                await storage.record_delivery(message_id=message_id, kind="event", action="deliver", subscription=subscription, counter="delivered_messages")
             except Exception:
                 logger.exception("delivery record failed")
         for name, owner in list(self._owners.items()):
@@ -650,12 +541,7 @@ class Broker:
             delivery = await storage.claim_next(name, resend=False)
             await self._enqueue_durable(owner, name, delivery)
 
-    async def _subscribe(
-        self,
-        frame: dict[str, object],
-        request: str | None,
-        session: _Session,
-    ) -> None:
+    async def _subscribe(self, frame: dict[str, object], request: str | None, session: _Session) -> None:
         pattern_value = frame.get("pattern")
         if not isinstance(pattern_value, str):
             raise ProtocolError("INVALID_MESSAGE", "A subscribe request needs a pattern.")
@@ -664,9 +550,7 @@ class Broker:
         if not isinstance(start_value, str):
             raise ProtocolError("INVALID_MESSAGE", "start must be a string.")
         sequence = frame.get("sequence")
-        if start_value == "sequence" and (
-            isinstance(sequence, bool) or not isinstance(sequence, int) or sequence < 1
-        ):
+        if start_value == "sequence" and (isinstance(sequence, bool) or not isinstance(sequence, int) or sequence < 1):
             raise ProtocolError("INVALID_MESSAGE", "sequence must be a positive integer.")
         chosen = sequence if isinstance(sequence, int) and not isinstance(sequence, bool) else None
         durable = frame.get("durable")
@@ -677,31 +561,18 @@ class Broker:
             raise ProtocolError("INVALID_MESSAGE", "durable must be a subscription name.")
         name = validate_destination(durable)
         storage = self._require_storage()
-        record = await storage.open_subscription(
-            name=name,
-            pattern=pattern,
-            start=start_value,
-            sequence=chosen,
-        )
+        record = await storage.open_subscription(name=name, pattern=pattern, start=start_value, sequence=chosen)
         async with session.send_lock:
             current = self._owners.get(name)
             if current is not None:
-                raise ProtocolError(
-                    "SUBSCRIPTION_CONFLICT",
-                    "This durable subscription already has a consumer.",
-                )
+                raise ProtocolError("SUBSCRIPTION_CONFLICT", "This durable subscription already has a consumer.")
             self._owners[name] = session
             session.durables.append(name)
             await session.outbound.put(_Outgoing(_subscribe_ok(request, record)))
         delivery = await storage.claim_next(name, resend=True)
         await self._enqueue_durable(session, name, delivery)
 
-    async def _subscribe_ephemeral(
-        self,
-        session: _Session,
-        request: str | None,
-        pattern: str,
-    ) -> None:
+    async def _subscribe_ephemeral(self, session: _Session, request: str | None, pattern: str) -> None:
         subscription_id = uuid7()
         ephemeral = _Ephemeral(pattern, subscription_id)
         frame: dict[str, object] = {
@@ -715,12 +586,7 @@ class Broker:
             session.ephemeral.append(ephemeral)
             await session.outbound.put(_Outgoing(frame))
 
-    async def _enqueue_durable(
-        self,
-        session: _Session,
-        name: str,
-        delivery: PendingDelivery | None,
-    ) -> None:
+    async def _enqueue_durable(self, session: _Session, name: str, delivery: PendingDelivery | None) -> None:
         if delivery is None:
             return
         frame = _event_frame(
@@ -742,23 +608,14 @@ class Broker:
             session.sent.add(delivery.delivery_id)
             await session.outbound.put(_Outgoing(frame))
 
-    async def _ack(
-        self,
-        frame: dict[str, object],
-        request: str | None,
-        session: _Session,
-    ) -> None:
+    async def _ack(self, frame: dict[str, object], request: str | None, session: _Session) -> None:
         delivery_id = frame.get("delivery_id")
         if not isinstance(delivery_id, str) or not delivery_id:
             raise ProtocolError("INVALID_MESSAGE", "An acknowledgement needs a delivery_id.")
         storage = self._require_storage()
         name, advanced = await storage.acknowledge(delivery_id)
         async with session.send_lock:
-            await session.outbound.put(
-                _Outgoing(
-                    {"op": "ack_ok", "request_id": request, "delivery_id": delivery_id},
-                )
-            )
+            await session.outbound.put(_Outgoing({"op": "ack_ok", "request_id": request, "delivery_id": delivery_id}))
             session.sent.discard(delivery_id)
         if not advanced:
             return
@@ -768,24 +625,13 @@ class Broker:
         delivery = await storage.claim_next(name, resend=False)
         await self._enqueue_durable(owner, name, delivery)
 
-    async def _enqueue(
-        self,
-        frame: dict[str, object],
-        request: str | None,
-        session: _Session,
-    ) -> None:
+    async def _enqueue(self, frame: dict[str, object], request: str | None, session: _Session) -> None:
         storage = self._require_storage()
         queue = self._queue_name(frame.get("queue"))
         spec = self._queue_spec(queue)
         data, headers, content_type, key = _message_parts(frame, self.config)
         job_id, created = await storage.enqueue_job(
-            queue=queue,
-            data=data,
-            headers=headers,
-            content_type=content_type,
-            idempotency_key=key,
-            window_seconds=self.config.messaging.idempotency_window_seconds,
-            max_depth=spec.max_depth,
+            queue=queue, data=data, headers=headers, content_type=content_type, idempotency_key=key, window_seconds=self.config.messaging.idempotency_window_seconds, max_depth=spec.max_depth
         )
         if created:
             logger.info("accepted job %s on %s", job_id, spec.name)
@@ -800,66 +646,34 @@ class Broker:
             },
         )
 
-    async def _consume(
-        self,
-        frame: dict[str, object],
-        request: str | None,
-        session: _Session,
-    ) -> None:
+    async def _consume(self, frame: dict[str, object], request: str | None, session: _Session) -> None:
         if session.queue is not None:
             raise ProtocolError("CONSUMER_BUSY", "This connection is already consuming a queue.")
         queue = self._queue_name(frame.get("queue"))
         self._queue_spec(queue)
         consumers = self.config.consumers
         prefetch = frame.get("prefetch", consumers.default_prefetch)
-        if (
-            not isinstance(prefetch, int)
-            or isinstance(prefetch, bool)
-            or not 1 <= prefetch <= consumers.max_prefetch
-        ):
-            raise ProtocolError(
-                "INVALID_MESSAGE",
-                f"prefetch must be an integer from 1 to {consumers.max_prefetch}.",
-            )
+        if not isinstance(prefetch, int) or isinstance(prefetch, bool) or not 1 <= prefetch <= consumers.max_prefetch:
+            raise ProtocolError("INVALID_MESSAGE", f"prefetch must be an integer from 1 to {consumers.max_prefetch}.")
         session.queue = queue
         session.prefetch = prefetch
         session.worker_id = uuid7()
         self._workers.setdefault(queue, []).append(session)
         async with session.send_lock:
-            await session.outbound.put(
-                _Outgoing({"op": "consume_ok", "request_id": request, "queue": queue})
-            )
+            await session.outbound.put(_Outgoing({"op": "consume_ok", "request_id": request, "queue": queue}))
         await self._fill(session)
 
-    async def _ack_job(
-        self,
-        frame: dict[str, object],
-        request: str | None,
-        session: _Session,
-    ) -> None:
+    async def _ack_job(self, frame: dict[str, object], request: str | None, session: _Session) -> None:
         delivery_id, token = _lease_pair(frame)
         storage = self._require_storage()
         retention = self.config.storage.retention
-        await storage.complete_job(
-            delivery_id,
-            token,
-            completed_max_age_days=retention.completed_jobs.max_age_days,
-            dead_max_age_days=retention.dead_letters.max_age_days,
-        )
+        await storage.complete_job(delivery_id, token, completed_max_age_days=retention.completed_jobs.max_age_days, dead_max_age_days=retention.dead_letters.max_age_days)
         self._forget_lease(session, delivery_id, token)
-        await self._send(
-            session,
-            {"op": "ack_ok", "request_id": request, "delivery_id": delivery_id},
-        )
+        await self._send(session, {"op": "ack_ok", "request_id": request, "delivery_id": delivery_id})
         if session.queue is not None:
             await self._fill(session)
 
-    async def _nack(
-        self,
-        frame: dict[str, object],
-        request: str | None,
-        session: _Session,
-    ) -> None:
+    async def _nack(self, frame: dict[str, object], request: str | None, session: _Session) -> None:
         delivery_id, token = _lease_pair(frame)
         requeue = frame.get("requeue", True)
         if not isinstance(requeue, bool):
@@ -868,33 +682,17 @@ class Broker:
         if not isinstance(reason, str) or not reason:
             raise ProtocolError("INVALID_MESSAGE", "reason must be a non-empty string.")
         await self._fail_job(session, delivery_id, token, reason=reason, requeue=requeue)
-        await self._send(
-            session,
-            {"op": "nack_ok", "request_id": request, "delivery_id": delivery_id},
-        )
+        await self._send(session, {"op": "nack_ok", "request_id": request, "delivery_id": delivery_id})
 
-    async def _reject(
-        self,
-        frame: dict[str, object],
-        request: str | None,
-        session: _Session,
-    ) -> None:
+    async def _reject(self, frame: dict[str, object], request: str | None, session: _Session) -> None:
         delivery_id, token = _lease_pair(frame)
         reason = frame.get("reason")
         if not isinstance(reason, str) or not reason:
             raise ProtocolError("INVALID_MESSAGE", "reason must be a non-empty string.")
         await self._fail_job(session, delivery_id, token, reason=reason, requeue=False)
-        await self._send(
-            session,
-            {"op": "reject_ok", "request_id": request, "delivery_id": delivery_id},
-        )
+        await self._send(session, {"op": "reject_ok", "request_id": request, "delivery_id": delivery_id})
 
-    async def _extend(
-        self,
-        frame: dict[str, object],
-        request: str | None,
-        session: _Session,
-    ) -> None:
+    async def _extend(self, frame: dict[str, object], request: str | None, session: _Session) -> None:
         delivery_id, token = _lease_pair(frame)
         seconds = frame.get("seconds")
         if not isinstance(seconds, int) or isinstance(seconds, bool) or seconds < 1:
@@ -910,26 +708,12 @@ class Broker:
             },
         )
 
-    async def _fail_job(
-        self,
-        session: _Session,
-        delivery_id: str,
-        token: str,
-        *,
-        reason: str,
-        requeue: bool,
-    ) -> None:
+    async def _fail_job(self, session: _Session, delivery_id: str, token: str, *, reason: str, requeue: bool) -> None:
         queue = session.queue
         if queue is None:
             raise ProtocolError("DELIVERY_NOT_FOUND", "This connection is not consuming a queue.")
         policy = self._policy(self._queue_spec(queue))
-        outcome = await self._require_storage().fail_delivery(
-            delivery_id,
-            token,
-            reason=reason,
-            requeue=requeue,
-            policy=policy,
-        )
+        outcome = await self._require_storage().fail_delivery(delivery_id, token, reason=reason, requeue=requeue, policy=policy)
         self._forget_lease(session, delivery_id, token)
         if outcome == "dead":
             logger.info("dead-lettered job delivery %s", delivery_id)
@@ -971,12 +755,7 @@ class Broker:
             return
         policy = self._policy(self._queue_spec(queue))
         for job_id, _delivery_id, token in leases:
-            await storage.release_lease(
-                job_id=job_id,
-                lease_token=token,
-                policy=policy,
-                reason="The worker disconnected.",
-            )
+            await storage.release_lease(job_id=job_id, lease_token=token, policy=policy, reason="The worker disconnected.")
         await self._fill_queue(queue)
 
     async def _sweep_leases(self) -> None:
@@ -1124,11 +903,7 @@ class Broker:
         jobs = await self._require_storage().inspect_queue(queue, limit)
         return {"op": "inspect_ok", "request_id": request, "queue": queue, "jobs": jobs}
 
-    async def _retry_admin(
-        self,
-        frame: dict[str, object],
-        request: str | None,
-    ) -> dict[str, object]:
+    async def _retry_admin(self, frame: dict[str, object], request: str | None) -> dict[str, object]:
         message_id = frame.get("message_id")
         if not isinstance(message_id, str) or not message_id:
             raise ProtocolError("INVALID_MESSAGE", "message_id must be a string.")
@@ -1155,11 +930,7 @@ class Broker:
             "dry_run": dry_run,
         }
 
-    async def _queue_create(
-        self,
-        frame: dict[str, object],
-        request: str | None,
-    ) -> dict[str, object]:
+    async def _queue_create(self, frame: dict[str, object], request: str | None) -> dict[str, object]:
         name = self._queue_name(frame.get("queue"))
         if any(queue.name == name for queue in self.config.queues):
             raise ProtocolError("QUEUE_EXISTS", f"Queue already exists: {name}")
@@ -1169,46 +940,24 @@ class Broker:
                 raise ProtocolError("INVALID_MESSAGE", "dead_letter_queue must be a string.")
             dead = validate_destination(dead)
             if dead == name:
-                raise ProtocolError(
-                    "INVALID_MESSAGE",
-                    "A queue cannot be its own dead-letter queue.",
-                )
+                raise ProtocolError("INVALID_MESSAGE", "A queue cannot be its own dead-letter queue.")
             self._queue_spec(dead)
         attempts = frame.get("max_attempts", 5)
-        if attempts is not None and (
-            not isinstance(attempts, int) or isinstance(attempts, bool) or attempts < 1
-        ):
+        if attempts is not None and (not isinstance(attempts, int) or isinstance(attempts, bool) or attempts < 1):
             raise ProtocolError("INVALID_MESSAGE", "max_attempts must be at least 1, or null.")
         visibility = frame.get("visibility_timeout_seconds", 60)
         if not isinstance(visibility, int) or isinstance(visibility, bool) or visibility < 1:
-            raise ProtocolError(
-                "INVALID_MESSAGE",
-                "visibility_timeout_seconds must be a positive integer.",
-            )
+            raise ProtocolError("INVALID_MESSAGE", "visibility_timeout_seconds must be a positive integer.")
         await self._require_storage().create_runtime_queue(
-            name=name,
-            max_attempts=attempts if isinstance(attempts, int) else None,
-            visibility_timeout_seconds=visibility,
-            dead_letter_queue=dead if isinstance(dead, str) else None,
+            name=name, max_attempts=attempts if isinstance(attempts, int) else None, visibility_timeout_seconds=visibility, dead_letter_queue=dead if isinstance(dead, str) else None
         )
         self.config.queues.append(
-            QueueSpec(
-                name=name,
-                max_attempts=attempts if isinstance(attempts, int) else None,
-                visibility_timeout_seconds=visibility,
-                dead_letter_queue=dead if isinstance(dead, str) else None,
-            )
+            QueueSpec(name=name, max_attempts=attempts if isinstance(attempts, int) else None, visibility_timeout_seconds=visibility, dead_letter_queue=dead if isinstance(dead, str) else None)
         )
         logger.info("created queue %s", name)
         return {"op": "queue_ok", "request_id": request, "queue": name}
 
-    async def _subscription_admin(
-        self,
-        frame: dict[str, object],
-        request: str | None,
-        *,
-        action: str,
-    ) -> dict[str, object]:
+    async def _subscription_admin(self, frame: dict[str, object], request: str | None, *, action: str) -> dict[str, object]:
         raw_name = frame.get("name")
         if not isinstance(raw_name, str):
             raise ProtocolError("INVALID_MESSAGE", "name must be a string.")
@@ -1240,12 +989,7 @@ class Broker:
                 raise
         else:
             raise ProtocolError("SUBSCRIPTION_CONFLICT", "This subscription already exists.")
-        record = await storage.open_subscription(
-            name=name,
-            pattern=pattern,
-            start="latest",
-            sequence=None,
-        )
+        record = await storage.open_subscription(name=name, pattern=pattern, start="latest", sequence=None)
         logger.info("created subscription %s", name)
         brief = _subscription_brief(record)
         return {"op": "subscription_ok", "request_id": request, "subscription": brief}
@@ -1295,10 +1039,7 @@ def _job_frame(lease: JobLease) -> dict[str, object]:
     return frame
 
 
-def _message_parts(
-    frame: dict[str, object],
-    config: RelayConfig,
-) -> tuple[object, dict[str, object], str, str | None]:
+def _message_parts(frame: dict[str, object], config: RelayConfig) -> tuple[object, dict[str, object], str, str | None]:
     content_type = frame.get("content_type", _JSON)
     if not isinstance(content_type, str):
         raise ProtocolError("INVALID_MESSAGE", "content_type must be a string.")
@@ -1350,18 +1091,7 @@ def _subscribe_ok(request: str | None, record: Subscription) -> dict[str, object
     return frame
 
 
-def _event_frame(
-    *,
-    delivery_id: str,
-    message_id: str,
-    subscription: str,
-    sequence: int,
-    destination: str,
-    data: object,
-    headers: object,
-    content_type: str,
-    durable: bool,
-) -> dict[str, object]:
+def _event_frame(*, delivery_id: str, message_id: str, subscription: str, sequence: int, destination: str, data: object, headers: object, content_type: str, durable: bool) -> dict[str, object]:
     return {
         "op": "delivery",
         "delivery_id": delivery_id,
@@ -1387,12 +1117,7 @@ def _hello_ok(frame: dict[str, object], config: RelayConfig, *, tcp: bool) -> bo
     return True
 
 
-def _check_sizes(
-    data: object,
-    headers: dict[str, object],
-    content_type: str,
-    config: RelayConfig,
-) -> None:
+def _check_sizes(data: object, headers: dict[str, object], content_type: str, config: RelayConfig) -> None:
     if content_type == _TEXT and not isinstance(data, str):
         raise ProtocolError("INVALID_MESSAGE", "A text payload must be a string.")
     if content_type == _BINARY:
@@ -1401,10 +1126,7 @@ def _check_sizes(
         try:
             base64.b64decode(data, validate=True)
         except Exception as exc:
-            raise ProtocolError(
-                "INVALID_MESSAGE",
-                "A binary payload must be valid base64.",
-            ) from exc
+            raise ProtocolError("INVALID_MESSAGE", "A binary payload must be valid base64.") from exc
     elif content_type != _JSON:
         raise ProtocolError("INVALID_MESSAGE", f"Unsupported content type: {content_type}")
     try:

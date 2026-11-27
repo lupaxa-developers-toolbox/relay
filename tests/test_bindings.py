@@ -46,10 +46,7 @@ def test_an_unbound_topic_does_not_create_a_job(workspace: Path) -> None:
 def test_each_matching_binding_gets_its_own_job(workspace: Path) -> None:
     running = RunningBroker(_config(workspace))
     try:
-        with (
-            _worker(running.socket, "deployment.jobs") as deploy,
-            _worker(running.socket, "audit.jobs") as audit,
-        ):
+        with _worker(running.socket, "deployment.jobs") as deploy, _worker(running.socket, "audit.jobs") as audit:
             deploy.wait_ready()
             audit.wait_ready()
             with RelayClient(socket=running.socket) as client:
@@ -70,16 +67,8 @@ def test_publish_idempotency_does_not_copy_the_job_twice(workspace: Path) -> Non
         with _worker(running.socket, "deployment.jobs") as worker:
             worker.wait_ready()
             with RelayClient(socket=running.socket) as client:
-                first = client.publish(
-                    "build.completed",
-                    {"version": "1.2.0"},
-                    idempotency_key="build-1",
-                )
-                second = client.publish(
-                    "build.completed",
-                    {"version": "1.2.0"},
-                    idempotency_key="build-1",
-                )
+                first = client.publish("build.completed", {"version": "1.2.0"}, idempotency_key="build-1")
+                second = client.publish("build.completed", {"version": "1.2.0"}, idempotency_key="build-1")
             job = worker.take()
             assert worker.poll(0.3) is None
         assert first.message_id == second.message_id

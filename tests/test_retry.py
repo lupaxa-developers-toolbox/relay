@@ -6,16 +6,7 @@ from lupaxa.relay.retry import AttemptPolicy, retry_delay
 
 
 def _policy(strategy: str) -> AttemptPolicy:
-    return AttemptPolicy(
-        max_attempts=5,
-        strategy=strategy,
-        initial_delay_seconds=5,
-        multiplier=2,
-        max_delay_seconds=12,
-        increment_seconds=3,
-        dead_letter_queue=None,
-        visibility_timeout_seconds=10,
-    )
+    return AttemptPolicy(max_attempts=5, strategy=strategy, initial_delay_seconds=5, multiplier=2, max_delay_seconds=12, increment_seconds=3, dead_letter_queue=None, visibility_timeout_seconds=10)
 
 
 def test_immediate_retry_is_ready_now() -> None:

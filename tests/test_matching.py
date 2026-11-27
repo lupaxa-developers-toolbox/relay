@@ -52,10 +52,7 @@ def test_valid_patterns_are_accepted(pattern: str) -> None:
     assert validate_pattern(pattern) == pattern
 
 
-@pytest.mark.parametrize(
-    "pattern",
-    ["", "build.", ".build", "**.build", "build.**.now", "a b", "_relay.*"],
-)
+@pytest.mark.parametrize("pattern", ["", "build.", ".build", "**.build", "build.**.now", "a b", "_relay.*"])
 def test_invalid_patterns_are_rejected(pattern: str) -> None:
     with pytest.raises(UsageError):
         validate_pattern(pattern)

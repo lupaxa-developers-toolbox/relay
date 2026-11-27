@@ -57,15 +57,7 @@ def test_messages_survive_a_restart(workspace: Path) -> None:
 
 
 def test_oversized_payload_is_not_stored(workspace: Path) -> None:
-    text = (
-        "version: 1\n"
-        "messaging:\n"
-        "  max_payload_kb: 1\n"
-        "server:\n"
-        f"  socket: {workspace / 'r.sock'}\n"
-        "storage:\n"
-        f"  path: {workspace / 'relay.sqlite3'}\n"
-    )
+    text = f"version: 1\nmessaging:\n  max_payload_kb: 1\nserver:\n  socket: {workspace / 'r.sock'}\nstorage:\n  path: {workspace / 'relay.sqlite3'}\n"
     path = workspace / "relay.yml"
     path.write_text(text)
     from lupaxa.relay.config import load_config
@@ -83,22 +75,10 @@ def test_oversized_payload_is_not_stored(workspace: Path) -> None:
 
 def test_idempotency_key_replays_and_conflicts(running: RunningBroker) -> None:
     with RelayClient(socket=running.socket) as client:
-        first = client.publish(
-            "build.completed",
-            {"version": "1.2.0"},
-            idempotency_key="build-example-1.2.0",
-        )
-        replay = client.publish(
-            "build.completed",
-            {"version": "1.2.0"},
-            idempotency_key="build-example-1.2.0",
-        )
+        first = client.publish("build.completed", {"version": "1.2.0"}, idempotency_key="build-example-1.2.0")
+        replay = client.publish("build.completed", {"version": "1.2.0"}, idempotency_key="build-example-1.2.0")
         with pytest.raises(ProtocolError) as caught:
-            client.publish(
-                "build.completed",
-                {"version": "9.9.9"},
-                idempotency_key="build-example-1.2.0",
-            )
+            client.publish("build.completed", {"version": "9.9.9"}, idempotency_key="build-example-1.2.0")
         assert caught.value.code == "IDEMPOTENCY_CONFLICT"
         assert client.status()["messages"] == 1
     assert replay.message_id == first.message_id
@@ -220,9 +200,7 @@ def test_version_1_database_is_migrated(workspace: Path) -> None:
         running.stop()
     with sqlite3.connect(database) as conn:
         version = conn.execute("SELECT MAX(version) FROM schema_migrations").fetchone()
-        tables = {
-            row[0] for row in conn.execute("SELECT name FROM sqlite_master WHERE type = 'table'")
-        }
+        tables = {row[0] for row in conn.execute("SELECT name FROM sqlite_master WHERE type = 'table'")}
     assert version is not None
     assert version[0] == 5
     assert "subscriptions" in tables

@@ -41,12 +41,7 @@ def test_queue_sample_acknowledges_one_job() -> None:
         try:
             with RelayClient(socket=running.socket) as client:
                 job_id = client.enqueue("image.resize", {"image": "a.jpg"})
-            completed = subprocess.run(
-                [sys.executable, str(root / "worker.py")],
-                check=True,
-                capture_output=True,
-                text=True,
-            )
+            completed = subprocess.run([sys.executable, str(root / "worker.py")], check=True, capture_output=True, text=True)
             heard = json.loads(completed.stdout)
             with RelayClient(socket=running.socket) as client:
                 rows = client.inspect("image.resize")
@@ -69,12 +64,7 @@ def test_subscribe_sample_reads_one_event_and_copies_a_job() -> None:
         try:
             with RelayClient(socket=running.socket) as client:
                 message_id = client.publish("build.completed", {"version": "1.2.0"}).message_id
-            completed = subprocess.run(
-                [sys.executable, str(root / "listen.py")],
-                check=True,
-                capture_output=True,
-                text=True,
-            )
+            completed = subprocess.run([sys.executable, str(root / "listen.py")], check=True, capture_output=True, text=True)
             heard = json.loads(completed.stdout)
             with RelayClient(socket=running.socket) as client:
                 jobs = client.inspect("deployment.jobs")
@@ -101,12 +91,7 @@ def _run(name: str, script: str) -> dict[str, object]:
     try:
         running = RunningBroker(_load(name))
         try:
-            completed = subprocess.run(
-                [sys.executable, str(root / script)],
-                check=True,
-                capture_output=True,
-                text=True,
-            )
+            completed = subprocess.run([sys.executable, str(root / script)], check=True, capture_output=True, text=True)
         finally:
             running.stop()
     finally:
@@ -119,8 +104,6 @@ def _run(name: str, script: str) -> dict[str, object]:
 
 def _clean(root: Path) -> None:
     for path in root.iterdir():
-        generated = path.name in {"r.sock", "relay.sqlite3"} or path.name.startswith(
-            "relay.sqlite3"
-        )
+        generated = path.name in {"r.sock", "relay.sqlite3"} or path.name.startswith("relay.sqlite3")
         if generated or path.suffix in {".lock", ".pid", ".log"}:
             path.unlink(missing_ok=True)

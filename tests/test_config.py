@@ -28,9 +28,7 @@ def test_unknown_key_is_rejected(tmp_path: Path) -> None:
 
 def test_remote_tcp_is_rejected(tmp_path: Path) -> None:
     path = tmp_path / "relay.yml"
-    path.write_text(
-        "version: 1\nserver:\n  tcp:\n    enabled: true\n    host: 0.0.0.0\n    port: 8765\n"
-    )
+    path.write_text("version: 1\nserver:\n  tcp:\n    enabled: true\n    host: 0.0.0.0\n    port: 8765\n")
     with pytest.raises(UsageError, match="loopback"):
         load_config(path, user_path=None)
 
@@ -44,10 +42,7 @@ def test_allow_remote_is_rejected(tmp_path: Path) -> None:
 
 def test_binding_queue_must_exist(tmp_path: Path) -> None:
     path = tmp_path / "relay.yml"
-    path.write_text(
-        "version: 1\nqueues:\n  - name: image.resize\n"
-        "bindings:\n  - id: deploy\n    topic: build.completed\n    queue: deployment.jobs\n"
-    )
+    path.write_text("version: 1\nqueues:\n  - name: image.resize\nbindings:\n  - id: deploy\n    topic: build.completed\n    queue: deployment.jobs\n")
     with pytest.raises(UsageError, match="deployment.jobs"):
         load_config(path, user_path=None)
 
@@ -66,9 +61,7 @@ def test_duplicate_binding_is_rejected(tmp_path: Path) -> None:
 
 def test_dead_letter_queue_must_exist(tmp_path: Path) -> None:
     path = tmp_path / "relay.yml"
-    path.write_text(
-        "version: 1\nqueues:\n  - name: image.resize\n    dead_letter_queue: image.resize.failed\n"
-    )
+    path.write_text("version: 1\nqueues:\n  - name: image.resize\n    dead_letter_queue: image.resize.failed\n")
     with pytest.raises(UsageError, match="image.resize.failed"):
         load_config(path, user_path=None)
 

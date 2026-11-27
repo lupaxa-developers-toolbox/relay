@@ -221,13 +221,7 @@ def default_socket_path() -> Path:
     return runtime / "relay.sock"
 
 
-def load_config(
-    path: Path | None = None,
-    *,
-    user_path: Path | None | object = _MISSING,
-    max_payload_kb: int | None = None,
-    socket: str | None = None,
-) -> RelayConfig:
+def load_config(path: Path | None = None, *, user_path: Path | None | object = _MISSING, max_payload_kb: int | None = None, socket: str | None = None) -> RelayConfig:
     """Load defaults, then the user file, then an explicit file, then CLI overrides."""
     merged: dict[str, object] = {"version": 1}
     chosen_user = default_config_path() if user_path is _MISSING else user_path

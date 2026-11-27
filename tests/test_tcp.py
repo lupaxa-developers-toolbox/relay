@@ -13,17 +13,7 @@ from tests.conftest import RunningBroker, write_config
 
 @pytest.mark.tcp
 def test_tcp_publish_and_status(workspace: Path) -> None:
-    text = (
-        "version: 1\n"
-        "server:\n"
-        "  transport: tcp\n"
-        "  tcp:\n"
-        "    enabled: true\n"
-        "    host: 127.0.0.1\n"
-        "    port: 0\n"
-        "storage:\n"
-        f"  path: {workspace / 'relay.sqlite3'}\n"
-    )
+    text = f"version: 1\nserver:\n  transport: tcp\n  tcp:\n    enabled: true\n    host: 127.0.0.1\n    port: 0\nstorage:\n  path: {workspace / 'relay.sqlite3'}\n"
     running = RunningBroker(load_config(write_config(workspace, text), user_path=None))
     try:
         port = running.broker.tcp_port

@@ -16,10 +16,7 @@ from tests.conftest import RunningBroker, write_config
 from tests.test_queues import _worker
 
 
-def test_queue_stats_and_history_show_a_published_event(
-    workspace: Path,
-    capsys: pytest.CaptureFixture[str],
-) -> None:
+def test_queue_stats_and_history_show_a_published_event(workspace: Path, capsys: pytest.CaptureFixture[str]) -> None:
     running = RunningBroker(_config(workspace))
     try:
         with RelayClient(socket=running.socket) as client:
@@ -36,10 +33,7 @@ def test_queue_stats_and_history_show_a_published_event(
         running.stop()
 
 
-def test_retry_puts_a_dead_lettered_job_back(
-    workspace: Path,
-    capsys: pytest.CaptureFixture[str],
-) -> None:
+def test_retry_puts_a_dead_lettered_job_back(workspace: Path, capsys: pytest.CaptureFixture[str]) -> None:
     running = RunningBroker(_config(workspace))
     try:
         with _worker(running.socket, "once") as worker:
@@ -75,10 +69,7 @@ def test_retry_puts_a_dead_lettered_job_back(
         running.stop()
 
 
-def test_purge_requires_confirmation_and_leaves_a_leased_job(
-    workspace: Path,
-    capsys: pytest.CaptureFixture[str],
-) -> None:
+def test_purge_requires_confirmation_and_leaves_a_leased_job(workspace: Path, capsys: pytest.CaptureFixture[str]) -> None:
     running = RunningBroker(_config(workspace))
     try:
         refused = main(["--socket", str(running.socket), "queue", "purge", "image.resize"])
@@ -89,9 +80,7 @@ def test_purge_requires_confirmation_and_leaves_a_leased_job(
         with _worker(running.socket, "image.resize") as worker:
             worker.wait_ready()
             held = worker.take()
-            code = main(
-                ["--socket", str(running.socket), "queue", "purge", "image.resize", "--yes"]
-            )
+            code = main(["--socket", str(running.socket), "queue", "purge", "image.resize", "--yes"])
             assert code == 0
             assert json.loads(capsys.readouterr().out)["deleted"] == 1
             held.ack()
@@ -145,10 +134,7 @@ def test_backup_copies_the_event(workspace: Path) -> None:
     assert row[0] == event.message_id
 
 
-def test_storage_check_and_subscription_delete(
-    workspace: Path,
-    capsys: pytest.CaptureFixture[str],
-) -> None:
+def test_storage_check_and_subscription_delete(workspace: Path, capsys: pytest.CaptureFixture[str]) -> None:
     running = RunningBroker(_config(workspace))
     try:
         with RelayClient(socket=running.socket) as client:
@@ -167,20 +153,14 @@ def test_storage_check_and_subscription_delete(
             ]
         )
         assert code == 0
-        with (
-            pytest.raises(ProtocolError) as caught,
-            RelayClient(socket=running.socket) as client,
-        ):
+        with pytest.raises(ProtocolError) as caught, RelayClient(socket=running.socket) as client:
             client.delete_subscription("auditor")
         assert caught.value.code == "NOT_FOUND"
     finally:
         running.stop()
 
 
-def test_daemon_start_status_and_stop(
-    workspace: Path,
-    capsys: pytest.CaptureFixture[str],
-) -> None:
+def test_daemon_start_status_and_stop(workspace: Path, capsys: pytest.CaptureFixture[str]) -> None:
     path = write_config(workspace, _text(workspace))
     code = main(["--config", str(path), "daemon", "start"])
     assert code == 0

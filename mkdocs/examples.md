@@ -20,7 +20,7 @@ back.
 ```
 
 ```python
---8<-- "samples/hello/publish.py"
+--8 < --"samples/hello/publish.py"
 ```
 
 ```bash
@@ -62,7 +62,7 @@ The second command prints the same `message_id` as the first.
 ```
 
 ```python
---8<-- "samples/queue/worker.py"
+--8 < --"samples/queue/worker.py"
 ```
 
 ```bash
@@ -93,7 +93,7 @@ copies `build.completed` onto `deployment.jobs`.
 ```
 
 ```python
---8<-- "samples/subscribe/listen.py"
+--8 < --"samples/subscribe/listen.py"
 ```
 
 ```bash

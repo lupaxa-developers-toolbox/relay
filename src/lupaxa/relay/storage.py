@@ -179,15 +179,7 @@ CREATE TABLE IF NOT EXISTS deliveries (
 CREATE INDEX IF NOT EXISTS deliveries_message ON deliveries (message_id, id);
 """
 
-_COUNTER_NAMES = (
-    "published_events",
-    "enqueued_jobs",
-    "delivered_messages",
-    "acknowledged_deliveries",
-    "negative_acknowledgements",
-    "retries",
-    "dead_lettered_jobs",
-)
+_COUNTER_NAMES = ("published_events", "enqueued_jobs", "delivered_messages", "acknowledged_deliveries", "negative_acknowledgements", "retries", "dead_lettered_jobs")
 
 
 @dataclass(frozen=True)
@@ -239,13 +231,7 @@ class JobLease:
 class Storage:
     """One SQLite connection. Callers must stay on the broker's event loop."""
 
-    def __init__(
-        self,
-        path: Path,
-        *,
-        durability: str,
-        now: Callable[[], float] | None = None,
-    ) -> None:
+    def __init__(self, path: Path, *, durability: str, now: Callable[[], float] | None = None) -> None:
         self.path = path
         self.durability = durability
         self._now = now or time.time
@@ -288,18 +274,9 @@ class Storage:
             await db.execute("BEGIN IMMEDIATE")
             try:
                 if idempotency_key:
-                    existing_id = await self._replay(
-                        db,
-                        "publish",
-                        idempotency_key,
-                        digest,
-                        window_seconds,
-                    )
+                    existing_id = await self._replay(db, "publish", idempotency_key, digest, window_seconds)
                     if existing_id is not None:
-                        found = await db.execute(
-                            "SELECT id, sequence FROM messages WHERE id = ?",
-                            (existing_id,),
-                        )
+                        found = await db.execute("SELECT id, sequence FROM messages WHERE id = ?", (existing_id,))
                         message = await found.fetchone()
                         await found.close()
                         if message is None:
@@ -322,15 +299,7 @@ class Storage:
                         id, kind, destination, sequence, timestamp, headers, content_type, data
                     ) VALUES (?, 'event', ?, ?, ?, ?, ?, ?)
                     """,
-                    (
-                        message_id,
-                        topic,
-                        sequence,
-                        timestamp,
-                        header_json,
-                        content_type,
-                        payload,
-                    ),
+                    (message_id, topic, sequence, timestamp, header_json, content_type, payload),
                 )
                 await inserted.close()
                 now = self._now()
@@ -348,15 +317,7 @@ class Storage:
                         (idempotency_key, digest, message_id, now),
                     )
                     await stored.close()
-                jobs = await self._insert_bound_jobs(
-                    db,
-                    queues=bound_queues or [],
-                    payload=payload,
-                    headers=header_json,
-                    content_type=content_type,
-                    now=now,
-                    limits=queue_limits or {},
-                )
+                jobs = await self._insert_bound_jobs(db, queues=bound_queues or [], payload=payload, headers=header_json, content_type=content_type, now=now, limits=queue_limits or {})
                 await self._bump(db, "published_events")
                 if jobs:
                     await self._bump(db, "enqueued_jobs", len(jobs))
@@ -366,17 +327,7 @@ class Storage:
                 raise
         return message_id, sequence, True, jobs
 
-    async def _insert_bound_jobs(
-        self,
-        db: aiosqlite.Connection,
-        *,
-        queues: list[str],
-        payload: str,
-        headers: str,
-        content_type: str,
-        now: float,
-        limits: dict[str, int],
-    ) -> list[tuple[str, str]]:
+    async def _insert_bound_jobs(self, db: aiosqlite.Connection, *, queues: list[str], payload: str, headers: str, content_type: str, now: float, limits: dict[str, int]) -> list[tuple[str, str]]:
         """Insert one pending job per queue. The caller owns the transaction."""
         jobs: list[tuple[str, str]] = []
         for queue in queues:
@@ -469,10 +420,7 @@ class Storage:
             await cursor.close()
         counts: dict[str, dict[str, int]] = {}
         for row in rows:
-            bucket = counts.setdefault(
-                str(row["queue"]),
-                {"pending": 0, "retry": 0, "leased": 0, "completed": 0, "dead": 0, "delayed": 0},
-            )
+            bucket = counts.setdefault(str(row["queue"]), {"pending": 0, "retry": 0, "leased": 0, "completed": 0, "dead": 0, "delayed": 0})
             state = str(row["state"])
             if state in bucket:
                 bucket[state] = int(row["total"])
@@ -532,10 +480,7 @@ class Storage:
                 current = str(row["queue"])
                 dead_lettered = state == "dead" or current != original
                 if state == "leased" or not dead_lettered:
-                    raise ProtocolError(
-                        "JOB_NOT_RETRYABLE",
-                        "Only a dead-lettered job can be retried.",
-                    )
+                    raise ProtocolError("JOB_NOT_RETRYABLE", "Only a dead-lettered job can be retried.")
                 now = self._now()
                 updated = await db.execute(
                     """
@@ -568,10 +513,7 @@ class Storage:
         async with gate:
             await db.execute("BEGIN IMMEDIATE")
             try:
-                cursor = await db.execute(
-                    "SELECT id FROM queue_jobs WHERE queue = ? AND state != 'leased'",
-                    (queue,),
-                )
+                cursor = await db.execute("SELECT id FROM queue_jobs WHERE queue = ? AND state != 'leased'", (queue,))
                 rows = list(await cursor.fetchall())
                 await cursor.close()
                 if dry_run:
@@ -581,10 +523,7 @@ class Storage:
                     job_id = str(row["id"])
                     removed = await db.execute("DELETE FROM queue_jobs WHERE id = ?", (job_id,))
                     await removed.close()
-                    keys = await db.execute(
-                        "DELETE FROM idempotency_keys WHERE message_id = ?",
-                        (job_id,),
-                    )
+                    keys = await db.execute("DELETE FROM idempotency_keys WHERE message_id = ?", (job_id,))
                     await keys.close()
                 await db.commit()
             except Exception:
@@ -601,23 +540,13 @@ class Storage:
             await cursor.close()
         return [_runtime_queue(row) for row in rows]
 
-    async def create_runtime_queue(
-        self,
-        *,
-        name: str,
-        max_attempts: int | None,
-        visibility_timeout_seconds: int,
-        dead_letter_queue: str | None,
-    ) -> None:
+    async def create_runtime_queue(self, *, name: str, max_attempts: int | None, visibility_timeout_seconds: int, dead_letter_queue: str | None) -> None:
         """Persist a queue created while the broker is running."""
         gate, db = self._require()
         async with gate:
             await db.execute("BEGIN IMMEDIATE")
             try:
-                cursor = await db.execute(
-                    "SELECT name FROM runtime_queues WHERE name = ?",
-                    (name,),
-                )
+                cursor = await db.execute("SELECT name FROM runtime_queues WHERE name = ?", (name,))
                 existing = await cursor.fetchone()
                 await cursor.close()
                 if existing is not None:
@@ -629,13 +558,7 @@ class Storage:
                         dead_letter_queue, created_at
                     ) VALUES (?, ?, ?, ?, ?)
                     """,
-                    (
-                        name,
-                        max_attempts,
-                        visibility_timeout_seconds,
-                        dead_letter_queue,
-                        self._now(),
-                    ),
+                    (name, max_attempts, visibility_timeout_seconds, dead_letter_queue, self._now()),
                 )
                 await inserted.close()
                 await db.commit()
@@ -747,14 +670,7 @@ class Storage:
         finally:
             target.close()
 
-    async def open_subscription(
-        self,
-        *,
-        name: str,
-        pattern: str,
-        start: str,
-        sequence: int | None,
-    ) -> Subscription:
+    async def open_subscription(self, *, name: str, pattern: str, start: str, sequence: int | None) -> Subscription:
         """Create a durable subscription, or return the one that already exists."""
         gate, db = self._require()
         async with gate:
@@ -763,10 +679,7 @@ class Storage:
                 current = await self._subscription_by_name(db, name)
                 if current is not None:
                     if current.pattern != pattern:
-                        raise ProtocolError(
-                            "SUBSCRIPTION_CONFLICT",
-                            "This durable subscription already uses a different pattern.",
-                        )
+                        raise ProtocolError("SUBSCRIPTION_CONFLICT", "This durable subscription already uses a different pattern.")
                     await db.rollback()
                     return current
                 cursor_sequence = await self._start_cursor(db, start, sequence)
@@ -824,13 +737,7 @@ class Storage:
                     await db.rollback()
                     return None
                 await self._bump(db, "delivered_messages")
-                await self._note(
-                    db,
-                    message_id=delivery.message_id,
-                    kind="event",
-                    action="deliver",
-                    subscription=current.name,
-                )
+                await self._note(db, message_id=delivery.message_id, kind="event", action="deliver", subscription=current.name)
                 await db.commit()
             except Exception:
                 await db.rollback()
@@ -883,13 +790,7 @@ class Storage:
                 )
                 pending_message = chosen["pending_message_id"]
                 await self._bump(db, "acknowledged_deliveries")
-                await self._note(
-                    db,
-                    message_id="" if pending_message is None else str(pending_message),
-                    kind="event",
-                    action="ack",
-                    subscription=name,
-                )
+                await self._note(db, message_id="" if pending_message is None else str(pending_message), kind="event", action="ack", subscription=name)
                 await db.commit()
             except Exception:
                 await db.rollback()
@@ -904,9 +805,7 @@ class Storage:
         async with gate:
             await db.execute("BEGIN IMMEDIATE")
             try:
-                counted = await db.execute(
-                    "SELECT COUNT(*) FROM messages WHERE kind = 'event'",
-                )
+                counted = await db.execute("SELECT COUNT(*) FROM messages WHERE kind = 'event'")
                 count_row = await counted.fetchone()
                 total = 0 if count_row is None or count_row[0] is None else int(count_row[0])
                 overflow = total - max_messages
@@ -921,11 +820,7 @@ class Storage:
                     (_RETENTION_BATCH,),
                 )
                 rows = list(await found.fetchall())
-                doomed = [
-                    row
-                    for index, row in enumerate(rows)
-                    if index < overflow or str(row["timestamp"]) < cutoff_text
-                ]
+                doomed = [row for index, row in enumerate(rows) if index < overflow or str(row["timestamp"]) < cutoff_text]
                 if not doomed:
                     await db.rollback()
                     return []
@@ -937,9 +832,7 @@ class Storage:
                     message_id = str(message["id"])
                     for sub in subs:
                         cursor_sequence = sub["cursor_sequence"]
-                        if isinstance(cursor_sequence, bool) or not isinstance(
-                            cursor_sequence, int
-                        ):
+                        if isinstance(cursor_sequence, bool) or not isinstance(cursor_sequence, int):
                             continue
                         if sequence <= cursor_sequence:
                             continue
@@ -954,10 +847,7 @@ class Storage:
                         sub["dirty"] = True
                         changed.add(str(sub["name"]))
                     await db.execute("DELETE FROM messages WHERE id = ?", (message_id,))
-                    await db.execute(
-                        "DELETE FROM idempotency_keys WHERE message_id = ?",
-                        (message_id,),
-                    )
+                    await db.execute("DELETE FROM idempotency_keys WHERE message_id = ?", (message_id,))
                 for sub in subs:
                     if sub.get("dirty") is True:
                         await self._update_subscription(db, sub)
@@ -968,15 +858,7 @@ class Storage:
         return sorted(changed)
 
     async def enqueue_job(
-        self,
-        *,
-        queue: str,
-        data: object,
-        headers: dict[str, object],
-        content_type: str,
-        idempotency_key: str | None,
-        window_seconds: int,
-        max_depth: int | None = None,
+        self, *, queue: str, data: object, headers: dict[str, object], content_type: str, idempotency_key: str | None, window_seconds: int, max_depth: int | None = None
     ) -> tuple[str, bool]:
         """Store a job. The bool is false when an idempotency key is replayed."""
         gate, db = self._require()
@@ -985,13 +867,7 @@ class Storage:
             await db.execute("BEGIN IMMEDIATE")
             try:
                 if idempotency_key:
-                    existing = await self._replay(
-                        db,
-                        "enqueue",
-                        idempotency_key,
-                        digest,
-                        window_seconds,
-                    )
+                    existing = await self._replay(db, "enqueue", idempotency_key, digest, window_seconds)
                     if existing is not None:
                         await db.rollback()
                         return existing, False
@@ -1006,16 +882,7 @@ class Storage:
                         attempts, lifetime_attempts, available_at, created_at
                     ) VALUES (?, ?, ?, 'pending', ?, ?, ?, 0, 0, ?, ?)
                     """,
-                    (
-                        job_id,
-                        queue,
-                        queue,
-                        json.dumps(data, separators=(",", ":"), sort_keys=True),
-                        json.dumps(headers, separators=(",", ":"), sort_keys=True),
-                        content_type,
-                        now,
-                        now,
-                    ),
+                    (job_id, queue, queue, json.dumps(data, separators=(",", ":"), sort_keys=True), json.dumps(headers, separators=(",", ":"), sort_keys=True), content_type, now, now),
                 )
                 await inserted.close()
                 await self._bump(db, "enqueued_jobs")
@@ -1047,13 +914,7 @@ class Storage:
                 raise
         return released
 
-    async def claim_job(
-        self,
-        queue: str,
-        *,
-        worker_id: str,
-        policy: AttemptPolicy,
-    ) -> JobLease | None:
+    async def claim_job(self, queue: str, *, worker_id: str, policy: AttemptPolicy) -> JobLease | None:
         """Lease the next eligible job, after releasing expired leases on this queue."""
         gate, db = self._require()
         async with gate:
@@ -1094,26 +955,10 @@ class Storage:
                         worker_id = ?
                     WHERE id = ?
                     """,
-                    (
-                        attempts,
-                        lifetime,
-                        delivery_id,
-                        lease_token,
-                        expires,
-                        worker_id,
-                        str(row["id"]),
-                    ),
+                    (attempts, lifetime, delivery_id, lease_token, expires, worker_id, str(row["id"])),
                 )
                 await self._bump(db, "delivered_messages")
-                await self._note(
-                    db,
-                    message_id=str(row["id"]),
-                    kind="job",
-                    action="deliver",
-                    queue=str(row["queue"]),
-                    worker_id=worker_id,
-                    attempt=attempts,
-                )
+                await self._note(db, message_id=str(row["id"]), kind="job", action="deliver", queue=str(row["queue"]), worker_id=worker_id, attempt=attempts)
                 leased = _job_lease(row, delivery_id, lease_token, attempts, lifetime)
                 await db.commit()
             except Exception:
@@ -1121,14 +966,7 @@ class Storage:
                 raise
         return leased
 
-    async def complete_job(
-        self,
-        delivery_id: str,
-        lease_token: str,
-        *,
-        completed_max_age_days: int,
-        dead_max_age_days: int,
-    ) -> None:
+    async def complete_job(self, delivery_id: str, lease_token: str, *, completed_max_age_days: int, dead_max_age_days: int) -> None:
         """Mark a leased job complete. A repeated ack of that lease is accepted."""
         gate, db = self._require()
         async with gate:
@@ -1145,23 +983,12 @@ class Storage:
                         (self._now(), str(row["id"])),
                     )
                     await self._bump(db, "acknowledged_deliveries")
-                    await self._note(
-                        db,
-                        message_id=str(row["id"]),
-                        kind="job",
-                        action="ack",
-                        queue=str(row["queue"]),
-                        worker_id=_optional_str(row["worker_id"]),
-                        attempt=int(row["attempts"]),
-                    )
+                    await self._note(db, message_id=str(row["id"]), kind="job", action="ack", queue=str(row["queue"]), worker_id=_optional_str(row["worker_id"]), attempt=int(row["attempts"]))
                 await db.commit()
             except Exception:
                 await db.rollback()
                 raise
-        await self.retain_jobs(
-            completed_max_age_days=completed_max_age_days,
-            dead_max_age_days=dead_max_age_days,
-        )
+        await self.retain_jobs(completed_max_age_days=completed_max_age_days, dead_max_age_days=dead_max_age_days)
 
     async def extend_job(self, delivery_id: str, lease_token: str, seconds: int) -> float:
         """Push a live lease forward. Returns the new expiry time."""
@@ -1174,25 +1001,14 @@ class Storage:
                 if row is None:
                     raise ProtocolError("LEASE_EXPIRED", "The delivery lease is no longer valid.")
                 expires = self._now() + seconds
-                await db.execute(
-                    "UPDATE queue_jobs SET lease_expires_at = ? WHERE id = ?",
-                    (expires, str(row["id"])),
-                )
+                await db.execute("UPDATE queue_jobs SET lease_expires_at = ? WHERE id = ?", (expires, str(row["id"])))
                 await db.commit()
             except Exception:
                 await db.rollback()
                 raise
         return expires
 
-    async def fail_delivery(
-        self,
-        delivery_id: str,
-        lease_token: str,
-        *,
-        reason: str,
-        requeue: bool,
-        policy: AttemptPolicy,
-    ) -> str:
+    async def fail_delivery(self, delivery_id: str, lease_token: str, *, reason: str, requeue: bool, policy: AttemptPolicy) -> str:
         """Retry or dead-letter a live lease. Returns 'retried' or 'dead'."""
         gate, db = self._require()
         async with gate:
@@ -1202,27 +1018,14 @@ class Storage:
                 self._require_current_lease(row, lease_token, allow_completed=False)
                 if row is None:
                     raise ProtocolError("LEASE_EXPIRED", "The delivery lease is no longer valid.")
-                outcome = await self._apply_failure(
-                    db,
-                    row,
-                    reason=reason,
-                    requeue=requeue,
-                    policy=policy,
-                )
+                outcome = await self._apply_failure(db, row, reason=reason, requeue=requeue, policy=policy)
                 await db.commit()
             except Exception:
                 await db.rollback()
                 raise
         return outcome
 
-    async def release_lease(
-        self,
-        *,
-        job_id: str,
-        lease_token: str,
-        policy: AttemptPolicy,
-        reason: str,
-    ) -> None:
+    async def release_lease(self, *, job_id: str, lease_token: str, policy: AttemptPolicy, reason: str) -> None:
         """Give up a lease because its worker disconnected."""
         gate, db = self._require()
         async with gate:
@@ -1250,30 +1053,14 @@ class Storage:
         async with gate:
             await db.execute("BEGIN IMMEDIATE")
             try:
-                await self._delete_jobs(
-                    db,
-                    "completed",
-                    "completed_at",
-                    now - completed_max_age_days * 86_400,
-                )
-                await self._delete_jobs(
-                    db,
-                    "dead",
-                    "failed_at",
-                    now - dead_max_age_days * 86_400,
-                )
+                await self._delete_jobs(db, "completed", "completed_at", now - completed_max_age_days * 86_400)
+                await self._delete_jobs(db, "dead", "failed_at", now - dead_max_age_days * 86_400)
                 await db.commit()
             except Exception:
                 await db.rollback()
                 raise
 
-    async def _delete_jobs(
-        self,
-        db: aiosqlite.Connection,
-        state: str,
-        column: str,
-        cutoff: float,
-    ) -> None:
+    async def _delete_jobs(self, db: aiosqlite.Connection, state: str, column: str, cutoff: float) -> None:
         cursor = await db.execute(
             f"""
             SELECT id FROM queue_jobs
@@ -1288,17 +1075,9 @@ class Storage:
         for row in rows:
             job_id = str(row["id"])
             await db.execute("DELETE FROM queue_jobs WHERE id = ?", (job_id,))
-            await db.execute(
-                "DELETE FROM idempotency_keys WHERE message_id = ?",
-                (job_id,),
-            )
+            await db.execute("DELETE FROM idempotency_keys WHERE message_id = ?", (job_id,))
 
-    async def _reap_locked(
-        self,
-        db: aiosqlite.Connection,
-        queue: str,
-        policy: AttemptPolicy,
-    ) -> list[str]:
+    async def _reap_locked(self, db: aiosqlite.Connection, queue: str, policy: AttemptPolicy) -> list[str]:
         now = self._now()
         cursor = await db.execute(
             """
@@ -1314,39 +1093,16 @@ class Storage:
             delivery_id = _optional_str(row["delivery_id"])
             if delivery_id is not None:
                 released.append(delivery_id)
-            await self._apply_failure(
-                db,
-                row,
-                reason="The lease expired.",
-                requeue=True,
-                policy=policy,
-            )
+            await self._apply_failure(db, row, reason="The lease expired.", requeue=True, policy=policy)
         return released
 
-    async def _apply_failure(
-        self,
-        db: aiosqlite.Connection,
-        row: aiosqlite.Row,
-        *,
-        reason: str,
-        requeue: bool,
-        policy: AttemptPolicy,
-    ) -> str:
+    async def _apply_failure(self, db: aiosqlite.Connection, row: aiosqlite.Row, *, reason: str, requeue: bool, policy: AttemptPolicy) -> str:
         attempts = int(row["attempts"])
         exhausted = policy.max_attempts is not None and attempts >= policy.max_attempts
         now = self._now()
         job_id = str(row["id"])
         await self._bump(db, "negative_acknowledgements")
-        await self._note(
-            db,
-            message_id=job_id,
-            kind="job",
-            action="nack",
-            queue=str(row["queue"]),
-            worker_id=_optional_str(row["worker_id"]),
-            attempt=attempts,
-            detail=reason,
-        )
+        await self._note(db, message_id=job_id, kind="job", action="nack", queue=str(row["queue"]), worker_id=_optional_str(row["worker_id"]), attempt=attempts, detail=reason)
         if requeue and not exhausted:
             delay = retry_delay(policy, attempts)
             await db.execute(
@@ -1382,15 +1138,7 @@ class Storage:
                 (policy.dead_letter_queue, now, reason, now, job_id),
             )
             await self._bump(db, "dead_lettered_jobs")
-            await self._note(
-                db,
-                message_id=job_id,
-                kind="job",
-                action="dead_letter",
-                queue=policy.dead_letter_queue,
-                attempt=attempts,
-                detail=reason,
-            )
+            await self._note(db, message_id=job_id, kind="job", action="dead_letter", queue=policy.dead_letter_queue, attempt=attempts, detail=reason)
             return "dead"
         await db.execute(
             """
@@ -1406,37 +1154,16 @@ class Storage:
             (reason, now, job_id),
         )
         await self._bump(db, "dead_lettered_jobs")
-        await self._note(
-            db,
-            message_id=job_id,
-            kind="job",
-            action="dead_letter",
-            queue=str(row["queue"]),
-            attempt=attempts,
-            detail=reason,
-        )
+        await self._note(db, message_id=job_id, kind="job", action="dead_letter", queue=str(row["queue"]), attempt=attempts, detail=reason)
         return "dead"
 
-    async def _job_by_delivery(
-        self,
-        db: aiosqlite.Connection,
-        delivery_id: str,
-    ) -> aiosqlite.Row | None:
-        cursor = await db.execute(
-            "SELECT * FROM queue_jobs WHERE delivery_id = ?",
-            (delivery_id,),
-        )
+    async def _job_by_delivery(self, db: aiosqlite.Connection, delivery_id: str) -> aiosqlite.Row | None:
+        cursor = await db.execute("SELECT * FROM queue_jobs WHERE delivery_id = ?", (delivery_id,))
         row = await cursor.fetchone()
         await cursor.close()
         return row
 
-    def _require_current_lease(
-        self,
-        row: aiosqlite.Row | None,
-        lease_token: str,
-        *,
-        allow_completed: bool,
-    ) -> None:
+    def _require_current_lease(self, row: aiosqlite.Row | None, lease_token: str, *, allow_completed: bool) -> None:
         if row is None or str(row["lease_token"]) != lease_token:
             raise ProtocolError("LEASE_EXPIRED", "The delivery lease is no longer valid.")
         state = str(row["state"])
@@ -1478,17 +1205,7 @@ class Storage:
         async with gate:
             await db.execute("BEGIN IMMEDIATE")
             try:
-                await self._note(
-                    db,
-                    message_id=message_id,
-                    kind=kind,
-                    action=action,
-                    subscription=subscription,
-                    queue=queue,
-                    worker_id=worker_id,
-                    attempt=attempt,
-                    detail=detail,
-                )
+                await self._note(db, message_id=message_id, kind=kind, action=action, subscription=subscription, queue=queue, worker_id=worker_id, attempt=attempt, detail=detail)
                 if counter is not None:
                     await self._bump(db, counter)
                 await db.commit()
@@ -1496,12 +1213,7 @@ class Storage:
                 await db.rollback()
                 raise
 
-    async def _history_pattern(
-        self,
-        db: aiosqlite.Connection,
-        pattern: str,
-        limit: int,
-    ) -> list[aiosqlite.Row]:
+    async def _history_pattern(self, db: aiosqlite.Connection, pattern: str, limit: int) -> list[aiosqlite.Row]:
         collected: list[aiosqlite.Row] = []
         last: int | None = None
         while len(collected) < limit:
@@ -1580,29 +1292,12 @@ class Storage:
                 attempt, detail, created_at
             ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
             """,
-            (
-                message_id,
-                kind,
-                action,
-                subscription,
-                queue,
-                worker_id,
-                attempt,
-                detail,
-                self._now(),
-            ),
+            (message_id, kind, action, subscription, queue, worker_id, attempt, detail, self._now()),
         )
         await cursor.close()
 
-    async def _delivery_rows(
-        self,
-        db: aiosqlite.Connection,
-        message_id: str,
-    ) -> list[aiosqlite.Row]:
-        cursor = await db.execute(
-            "SELECT * FROM deliveries WHERE message_id = ? ORDER BY id ASC",
-            (message_id,),
-        )
+    async def _delivery_rows(self, db: aiosqlite.Connection, message_id: str) -> list[aiosqlite.Row]:
+        cursor = await db.execute("SELECT * FROM deliveries WHERE message_id = ? ORDER BY id ASC", (message_id,))
         rows = list(await cursor.fetchall())
         await cursor.close()
         return rows
@@ -1614,9 +1309,7 @@ class Storage:
         row = await cursor.fetchone()
         current = None if row is None or row[0] is None else int(row[0])
         if current is not None and current > SCHEMA_VERSION:
-            raise UsageError(
-                f"This database schema is version {current}, which is newer than this Relay."
-            )
+            raise UsageError(f"This database schema is version {current}, which is newer than this Relay.")
         if current is not None and current < SCHEMA_VERSION:
             if current < 2:
                 await db.executescript(_CREATE_SUBSCRIPTIONS)
@@ -1626,28 +1319,15 @@ class Storage:
                 await db.executescript(_CREATE_RUNTIME)
             if current < 5:
                 await db.executescript(_CREATE_OBSERVABILITY)
-            await db.execute(
-                "UPDATE schema_migrations SET version = ?",
-                (SCHEMA_VERSION,),
-            )
+            await db.execute("UPDATE schema_migrations SET version = ?", (SCHEMA_VERSION,))
             await db.commit()
             return
         if current is None:
             await db.executescript(_CREATE)
-            await db.execute(
-                "INSERT INTO schema_migrations (version) VALUES (?)",
-                (SCHEMA_VERSION,),
-            )
+            await db.execute("INSERT INTO schema_migrations (version) VALUES (?)", (SCHEMA_VERSION,))
             await db.commit()
 
-    async def _replay(
-        self,
-        db: aiosqlite.Connection,
-        operation: str,
-        key: str,
-        digest: str,
-        window_seconds: int,
-    ) -> str | None:
+    async def _replay(self, db: aiosqlite.Connection, operation: str, key: str, digest: str, window_seconds: int) -> str | None:
         cursor = await db.execute(
             """
             SELECT fingerprint, message_id, created_at
@@ -1661,23 +1341,13 @@ class Storage:
             return None
         age = self._now() - float(row["created_at"])
         if age > window_seconds:
-            await db.execute(
-                "DELETE FROM idempotency_keys WHERE operation = ? AND key = ?",
-                (operation, key),
-            )
+            await db.execute("DELETE FROM idempotency_keys WHERE operation = ? AND key = ?", (operation, key))
             return None
         if str(row["fingerprint"]) != digest:
-            raise ProtocolError(
-                "IDEMPOTENCY_CONFLICT",
-                "This idempotency key was already used for a different message.",
-            )
+            raise ProtocolError("IDEMPOTENCY_CONFLICT", "This idempotency key was already used for a different message.")
         return str(row["message_id"])
 
-    async def _subscription_by_name(
-        self,
-        db: aiosqlite.Connection,
-        name: str,
-    ) -> Subscription | None:
+    async def _subscription_by_name(self, db: aiosqlite.Connection, name: str) -> Subscription | None:
         cursor = await db.execute("SELECT * FROM subscriptions WHERE name = ?", (name,))
         row = await cursor.fetchone()
         await cursor.close()
@@ -1706,11 +1376,7 @@ class Storage:
             )
         return loaded
 
-    async def _update_subscription(
-        self,
-        db: aiosqlite.Connection,
-        sub: dict[str, object],
-    ) -> None:
+    async def _update_subscription(self, db: aiosqlite.Connection, sub: dict[str, object]) -> None:
         await db.execute(
             """
             UPDATE subscriptions SET
@@ -1723,29 +1389,13 @@ class Storage:
                 gap_to = ?
             WHERE name = ?
             """,
-            (
-                sub["cursor_sequence"],
-                sub["pending_delivery_id"],
-                sub["pending_message_id"],
-                sub["pending_sequence"],
-                sub["last_delivery_id"],
-                sub["gap_from"],
-                sub["gap_to"],
-                sub["name"],
-            ),
+            (sub["cursor_sequence"], sub["pending_delivery_id"], sub["pending_message_id"], sub["pending_sequence"], sub["last_delivery_id"], sub["gap_from"], sub["gap_to"], sub["name"]),
         )
 
-    async def _pending_delivery(
-        self,
-        db: aiosqlite.Connection,
-        current: Subscription,
-    ) -> PendingDelivery | None:
+    async def _pending_delivery(self, db: aiosqlite.Connection, current: Subscription) -> PendingDelivery | None:
         if current.pending_delivery_id is None or current.pending_message_id is None:
             return None
-        found = await db.execute(
-            "SELECT * FROM messages WHERE id = ?",
-            (current.pending_message_id,),
-        )
+        found = await db.execute("SELECT * FROM messages WHERE id = ?", (current.pending_message_id,))
         row = await found.fetchone()
         if row is None:
             return None
@@ -1764,11 +1414,7 @@ class Storage:
             (current.pending_delivery_id, current.name),
         )
 
-    async def _claim_new(
-        self,
-        db: aiosqlite.Connection,
-        current: Subscription,
-    ) -> PendingDelivery | None:
+    async def _claim_new(self, db: aiosqlite.Connection, current: Subscription) -> PendingDelivery | None:
         message = await self._next_match(db, current.pattern, current.cursor_sequence)
         if message is None:
             return None
@@ -1785,12 +1431,7 @@ class Storage:
         )
         return _pending(message, delivery_id)
 
-    async def _next_match(
-        self,
-        db: aiosqlite.Connection,
-        pattern: str,
-        cursor_sequence: int,
-    ) -> aiosqlite.Row | None:
+    async def _next_match(self, db: aiosqlite.Connection, pattern: str, cursor_sequence: int) -> aiosqlite.Row | None:
         last = cursor_sequence
         while True:
             found = await db.execute(
@@ -1810,12 +1451,7 @@ class Storage:
                 if matches(pattern, str(row["destination"])):
                     return row
 
-    async def _start_cursor(
-        self,
-        db: aiosqlite.Connection,
-        start: str,
-        sequence: int | None,
-    ) -> int:
+    async def _start_cursor(self, db: aiosqlite.Connection, start: str, sequence: int | None) -> int:
         if start == "earliest":
             return 0
         if start == "sequence":
@@ -1823,10 +1459,7 @@ class Storage:
                 raise ProtocolError("INVALID_MESSAGE", "sequence must be a positive integer.")
             return sequence - 1
         if start != "latest":
-            raise ProtocolError(
-                "INVALID_MESSAGE",
-                "start must be latest, earliest, or sequence.",
-            )
+            raise ProtocolError("INVALID_MESSAGE", "start must be latest, earliest, or sequence.")
         cursor = await db.execute("SELECT COALESCE(MAX(sequence), 0) FROM messages")
         row = await cursor.fetchone()
         await cursor.close()
@@ -1871,13 +1504,7 @@ def _pending(row: aiosqlite.Row, delivery_id: str) -> PendingDelivery:
     headers = json.loads(str(row["headers"]))
     data = json.loads(str(row["data"]))
     return PendingDelivery(
-        delivery_id=delivery_id,
-        message_id=str(row["id"]),
-        sequence=int(row["sequence"]),
-        destination=str(row["destination"]),
-        data=data,
-        headers=headers,
-        content_type=str(row["content_type"]),
+        delivery_id=delivery_id, message_id=str(row["id"]), sequence=int(row["sequence"]), destination=str(row["destination"]), data=data, headers=headers, content_type=str(row["content_type"])
     )
 
 
@@ -1895,12 +1522,7 @@ def _optional_str(value: object) -> str | None:
     return str(value)
 
 
-def _job_fingerprint(
-    queue: str,
-    content_type: str,
-    headers: dict[str, object],
-    data: object,
-) -> str:
+def _job_fingerprint(queue: str, content_type: str, headers: dict[str, object], data: object) -> str:
     blob = json.dumps(
         {
             "content_type": content_type,
@@ -1915,13 +1537,7 @@ def _job_fingerprint(
     return hashlib.sha256(blob.encode()).hexdigest()
 
 
-def _job_lease(
-    row: aiosqlite.Row,
-    delivery_id: str,
-    lease_token: str,
-    attempts: int,
-    lifetime: int,
-) -> JobLease:
+def _job_lease(row: aiosqlite.Row, delivery_id: str, lease_token: str, attempts: int, lifetime: int) -> JobLease:
     return JobLease(
         id=str(row["id"]),
         queue=str(row["queue"]),
@@ -1937,12 +1553,7 @@ def _job_lease(
     )
 
 
-def _fingerprint(
-    topic: str,
-    content_type: str,
-    headers: dict[str, object],
-    data: object,
-) -> str:
+def _fingerprint(topic: str, content_type: str, headers: dict[str, object], data: object) -> str:
     blob = json.dumps(
         {
             "content_type": content_type,

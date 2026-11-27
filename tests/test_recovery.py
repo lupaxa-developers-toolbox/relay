@@ -26,11 +26,7 @@ def test_a_committed_publish_survives_a_kill(workspace: Path) -> None:
     process = _start(path, workspace)
     try:
         with RelayClient(socket=workspace / "r.sock") as client:
-            message_id = client.publish(
-                "build.completed",
-                {"n": 1},
-                idempotency_key="same",
-            ).message_id
+            message_id = client.publish("build.completed", {"n": 1}, idempotency_key="same").message_id
     finally:
         _kill(process)
     _consistent(workspace / "relay.sqlite3")
@@ -116,10 +112,7 @@ def test_a_kill_keeps_a_dead_letter(workspace: Path) -> None:
         _kill(process)
     _consistent(workspace / "relay.sqlite3")
     with sqlite3.connect(workspace / "relay.sqlite3") as conn:
-        row = conn.execute(
-            "SELECT queue, state FROM queue_jobs WHERE id = ?",
-            (job_id,),
-        ).fetchone()
+        row = conn.execute("SELECT queue, state FROM queue_jobs WHERE id = ?", (job_id,)).fetchone()
     assert row == ("image.resize.failed", "pending")
 
 

@@ -15,10 +15,7 @@ def run(socket: Path) -> None:
     try:
         app: Any = build_app(socket)
     except ImportError as exc:
-        raise RelayError(
-            "Install the tui extra to use the text interface: pip install lupaxa-relay[tui]",
-            exit_code=2,
-        ) from exc
+        raise RelayError("Install the tui extra to use the text interface: pip install lupaxa-relay[tui]", exit_code=2) from exc
     app.run()
 
 
@@ -63,14 +60,7 @@ def build_app(socket: Path) -> Any:
             yield Footer()
 
         def on_mount(self) -> None:
-            self.query_one("#queues", DataTable).add_columns(
-                "Queue",
-                "Pending",
-                "Leased",
-                "Retry",
-                "Dead",
-                "Workers",
-            )
+            self.query_one("#queues", DataTable).add_columns("Queue", "Pending", "Leased", "Retry", "Dead", "Workers")
             self.query_one("#topics", DataTable).add_columns("Topic", "Messages")
             self.query_one("#events", DataTable).add_columns("Topic", "Id")
             self.query_one("#subscriptions", DataTable).add_columns("Name", "Pattern", "Cursor")
@@ -119,11 +109,7 @@ def build_app(socket: Path) -> Any:
                 for item in listed:
                     if not isinstance(item, dict):
                         continue
-                    subscriptions.add_row(
-                        str(item.get("name", "")),
-                        str(item.get("pattern", "")),
-                        str(item.get("cursor_sequence", "")),
-                    )
+                    subscriptions.add_row(str(item.get("name", "")), str(item.get("pattern", "")), str(item.get("cursor_sequence", "")))
             for queue, job_id, reason in dead_rows:
                 self.dead_jobs.append((queue, job_id))
                 dead.add_row(queue, job_id, reason)
@@ -197,14 +183,7 @@ def _fill_queues(table: Any, status: dict[str, object]) -> None:
     for item in listed:
         if not isinstance(item, dict):
             continue
-        table.add_row(
-            str(item.get("name", "")),
-            str(item.get("pending", 0)),
-            str(item.get("leased", 0)),
-            str(item.get("retry", 0)),
-            str(item.get("dead", 0)),
-            str(item.get("workers", 0)),
-        )
+        table.add_row(str(item.get("name", "")), str(item.get("pending", 0)), str(item.get("leased", 0)), str(item.get("retry", 0)), str(item.get("dead", 0)), str(item.get("workers", 0)))
 
 
 def _fill_topics(table: Any, status: dict[str, object]) -> None:
@@ -217,10 +196,7 @@ def _fill_topics(table: Any, status: dict[str, object]) -> None:
         table.add_row(str(item.get("name", "")), str(item.get("messages", 0)))
 
 
-def _dead_jobs(
-    client: RelayClient,
-    status: dict[str, object],
-) -> list[tuple[str, str, str]]:
+def _dead_jobs(client: RelayClient, status: dict[str, object]) -> list[tuple[str, str, str]]:
     names = status.get("queues")
     if not isinstance(names, list):
         return []

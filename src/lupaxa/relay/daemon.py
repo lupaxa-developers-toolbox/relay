@@ -32,13 +32,7 @@ def start(config: RelayConfig, *, config_path: Path | None, socket: Path) -> int
     log_path = Path(str(config.database_path()) + ".log")
     log_path.parent.mkdir(parents=True, exist_ok=True)
     with log_path.open("ab") as log:
-        process = subprocess.Popen(
-            command,
-            start_new_session=True,
-            stdin=subprocess.DEVNULL,
-            stdout=log,
-            stderr=subprocess.STDOUT,
-        )
+        process = subprocess.Popen(command, start_new_session=True, stdin=subprocess.DEVNULL, stdout=log, stderr=subprocess.STDOUT)
     deadline = time.monotonic() + 5
     while time.monotonic() < deadline:
         if process.poll() is not None:
@@ -73,12 +67,7 @@ def stop(config: RelayConfig) -> None:
     raise RelayError("Relay did not stop.", exit_code=1)
 
 
-def describe(
-    config: RelayConfig,
-    *,
-    socket: Path | None,
-    timeout: float = 0.5,
-) -> dict[str, object]:
+def describe(config: RelayConfig, *, socket: Path | None, timeout: float = 0.5) -> dict[str, object]:
     """Report whether the background process and the broker socket are up."""
     pid = _read_pid(pid_file(config))
     alive = pid is not None and _process_alive(pid)

@@ -30,25 +30,14 @@ def write_config(root: Path, body: str = "version: 1\n") -> Path:
 
 def isolated_config(root: Path) -> RelayConfig:
     """A broker configuration that stays inside root."""
-    text = (
-        "version: 1\n"
-        "server:\n"
-        f"  socket: {root / 'r.sock'}\n"
-        "storage:\n"
-        f"  path: {root / 'relay.sqlite3'}\n"
-    )
+    text = f"version: 1\nserver:\n  socket: {root / 'r.sock'}\nstorage:\n  path: {root / 'relay.sqlite3'}\n"
     return load_config(write_config(root, text), user_path=None)
 
 
 class RunningBroker:
     """Run a broker on a background event loop so sync clients can connect."""
 
-    def __init__(
-        self,
-        config: RelayConfig,
-        *,
-        now: Callable[[], float] | None = None,
-    ) -> None:
+    def __init__(self, config: RelayConfig, *, now: Callable[[], float] | None = None) -> None:
         self.config = config
         self.loop = asyncio.new_event_loop()
         self.broker = Broker(config, now=now)

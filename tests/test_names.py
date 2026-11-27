@@ -8,18 +8,12 @@ from lupaxa.relay.exceptions import UsageError
 from lupaxa.relay.names import validate_destination
 
 
-@pytest.mark.parametrize(
-    "name",
-    ["build.completed", "repository.updated", "image.resize", "A", "job_1.part-2"],
-)
+@pytest.mark.parametrize("name", ["build.completed", "repository.updated", "image.resize", "A", "job_1.part-2"])
 def test_ordinary_names_are_accepted(name: str) -> None:
     assert validate_destination(name) == name
 
 
-@pytest.mark.parametrize(
-    "name",
-    ["", "build.", ".build", "build..completed", "build.*", "build.**", "has space", "a/b"],
-)
+@pytest.mark.parametrize("name", ["", "build.", ".build", "build..completed", "build.*", "build.**", "has space", "a/b"])
 def test_malformed_names_are_rejected(name: str) -> None:
     with pytest.raises(UsageError):
         validate_destination(name)

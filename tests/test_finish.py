@@ -122,10 +122,7 @@ def test_prefetch_default_cannot_exceed_the_maximum(workspace: Path) -> None:
         load_config(write_config(workspace, text), user_path=None)
 
 
-def test_doctor_reports_schema_socket_and_a_listening_broker(
-    workspace: Path,
-    capsys: CaptureFixture[str],
-) -> None:
+def test_doctor_reports_schema_socket_and_a_listening_broker(workspace: Path, capsys: CaptureFixture[str]) -> None:
     config = isolated_config(workspace)
     absent = main(["--config", str(workspace / "relay.yml"), "doctor"])
     assert absent == 0
@@ -162,10 +159,7 @@ def test_quiet_and_verbose_conflict() -> None:
     assert main(["--quiet", "--verbose", "config", "path"]) == 2
 
 
-def test_timeout_is_applied_when_nothing_is_listening(
-    workspace: Path,
-    capsys: CaptureFixture[str],
-) -> None:
+def test_timeout_is_applied_when_nothing_is_listening(workspace: Path, capsys: CaptureFixture[str]) -> None:
     code = main(["--socket", str(workspace / "missing.sock"), "--timeout", "0.2", "status"])
     assert code == 3
     assert "Traceback" not in capsys.readouterr().err
@@ -176,9 +170,7 @@ def test_dry_run_purge_does_not_delete(workspace: Path, capsys: CaptureFixture[s
     try:
         with RelayClient(socket=running.socket) as client:
             client.enqueue("image.resize", {"n": 1})
-        code = main(
-            ["--socket", str(running.socket), "--dry-run", "queue", "purge", "image.resize"]
-        )
+        code = main(["--socket", str(running.socket), "--dry-run", "queue", "purge", "image.resize"])
         payload = json.loads(capsys.readouterr().out)
         with RelayClient(socket=running.socket) as client:
             left = client.inspect("image.resize")

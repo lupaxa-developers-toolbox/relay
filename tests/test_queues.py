@@ -53,10 +53,7 @@ def test_a_worker_receives_the_enqueued_payload(jobs: tuple[RunningBroker, Manua
 
 def test_two_workers_do_not_share_one_job(jobs: tuple[RunningBroker, ManualClock]) -> None:
     running, _clock = jobs
-    with (
-        _worker(running.socket, "image.resize") as first,
-        _worker(running.socket, "image.resize", timeout=0.4) as second,
-    ):
+    with _worker(running.socket, "image.resize") as first, _worker(running.socket, "image.resize", timeout=0.4) as second:
         first.wait_ready()
         second.wait_ready()
         _enqueue(running.socket, "image.resize", {"n": 1})
@@ -66,10 +63,7 @@ def test_two_workers_do_not_share_one_job(jobs: tuple[RunningBroker, ManualClock
 
 def test_workers_receive_different_jobs(jobs: tuple[RunningBroker, ManualClock]) -> None:
     running, _clock = jobs
-    with (
-        _worker(running.socket, "image.resize") as first,
-        _worker(running.socket, "image.resize") as second,
-    ):
+    with _worker(running.socket, "image.resize") as first, _worker(running.socket, "image.resize") as second:
         first.wait_ready()
         second.wait_ready()
         _enqueue(running.socket, "image.resize", {"n": 1})
@@ -79,9 +73,7 @@ def test_workers_receive_different_jobs(jobs: tuple[RunningBroker, ManualClock])
     assert left.message_id != right.message_id
 
 
-def test_the_second_job_waits_until_the_first_is_acked(
-    jobs: tuple[RunningBroker, ManualClock],
-) -> None:
+def test_the_second_job_waits_until_the_first_is_acked(jobs: tuple[RunningBroker, ManualClock]) -> None:
     running, _clock = jobs
     with _worker(running.socket, "image.resize") as worker:
         worker.wait_ready()
@@ -96,9 +88,7 @@ def test_the_second_job_waits_until_the_first_is_acked(
     assert second.data == {"n": 2}
 
 
-def test_disconnect_returns_the_job_and_blocks_the_old_lease(
-    jobs: tuple[RunningBroker, ManualClock],
-) -> None:
+def test_disconnect_returns_the_job_and_blocks_the_old_lease(jobs: tuple[RunningBroker, ManualClock]) -> None:
     running, _clock = jobs
     with _worker(running.socket, "fast") as first:
         first.wait_ready()
@@ -133,9 +123,7 @@ def test_nack_waits_for_the_retry_delay(jobs: tuple[RunningBroker, ManualClock])
     assert again.attempt == 2
 
 
-def test_reject_moves_the_job_to_the_dead_letter_queue(
-    jobs: tuple[RunningBroker, ManualClock],
-) -> None:
+def test_reject_moves_the_job_to_the_dead_letter_queue(jobs: tuple[RunningBroker, ManualClock]) -> None:
     running, _clock = jobs
     with _worker(running.socket, "image.resize") as worker:
         worker.wait_ready()
@@ -188,9 +176,7 @@ def test_expired_lease_cannot_ack_or_extend(jobs: tuple[RunningBroker, ManualClo
         again.ack()
 
 
-def test_extend_keeps_the_lease_past_the_original_deadline(
-    jobs: tuple[RunningBroker, ManualClock],
-) -> None:
+def test_extend_keeps_the_lease_past_the_original_deadline(jobs: tuple[RunningBroker, ManualClock]) -> None:
     running, clock = jobs
     with _worker(running.socket, "image.resize") as worker:
         worker.wait_ready()
@@ -263,9 +249,7 @@ def test_enqueue_idempotency_replays_the_same_job(jobs: tuple[RunningBroker, Man
         assert worker.poll(0.3) is None
 
 
-def test_completed_retention_leaves_pending_jobs(
-    workspace: Path,
-) -> None:
+def test_completed_retention_leaves_pending_jobs(workspace: Path) -> None:
     text = _body(workspace, completed_age=0)
     running = RunningBroker(load_config(write_config(workspace, text), user_path=None))
     try:
@@ -284,10 +268,7 @@ def test_completed_retention_leaves_pending_jobs(
     assert done not in rows
 
 
-def test_enqueue_command_prints_the_job_id(
-    jobs: tuple[RunningBroker, ManualClock],
-    capsys: pytest.CaptureFixture[str],
-) -> None:
+def test_enqueue_command_prints_the_job_id(jobs: tuple[RunningBroker, ManualClock], capsys: pytest.CaptureFixture[str]) -> None:
     running, _clock = jobs
     code = main(
         [

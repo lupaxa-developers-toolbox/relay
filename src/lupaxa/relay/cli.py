@@ -24,30 +24,14 @@ from lupaxa.relay.storage import Storage
 from lupaxa.relay.tui import run as run_tui
 from lupaxa.relay.version import __version__
 
-app = typer.Typer(
-    add_completion=False,
-    no_args_is_help=True,
-    help="Exchange messages between independent programs.",
-)
+app = typer.Typer(add_completion=False, no_args_is_help=True, help="Exchange messages between independent programs.")
 config_app = typer.Typer(add_completion=False, no_args_is_help=True, help="Inspect configuration.")
 worker_app = typer.Typer(add_completion=False, no_args_is_help=True, help="Run a queue worker.")
-queue_app = typer.Typer(
-    add_completion=False,
-    no_args_is_help=True,
-    help="Inspect and manage queues.",
-)
+queue_app = typer.Typer(add_completion=False, no_args_is_help=True, help="Inspect and manage queues.")
 topic_app = typer.Typer(add_completion=False, no_args_is_help=True, help="Inspect topics.")
-subscription_app = typer.Typer(
-    add_completion=False,
-    no_args_is_help=True,
-    help="Manage durable subscriptions.",
-)
+subscription_app = typer.Typer(add_completion=False, no_args_is_help=True, help="Manage durable subscriptions.")
 storage_app = typer.Typer(add_completion=False, no_args_is_help=True, help="Inspect stored data.")
-daemon_app = typer.Typer(
-    add_completion=False,
-    no_args_is_help=True,
-    help="Run the broker in the background.",
-)
+daemon_app = typer.Typer(add_completion=False, no_args_is_help=True, help="Run the broker in the background.")
 app.add_typer(config_app, name="config")
 app.add_typer(worker_app, name="worker")
 app.add_typer(queue_app, name="queue")
@@ -68,12 +52,7 @@ def _root(
     ctx: typer.Context,
     _version: Annotated[
         bool,
-        typer.Option(
-            "--version",
-            help="Show the package version and exit.",
-            callback=_show_version,
-            is_eager=True,
-        ),
+        typer.Option("--version", help="Show the package version and exit.", callback=_show_version, is_eager=True),
     ] = False,
     config: Annotated[
         Path | None,
@@ -114,10 +93,7 @@ def _root(
         "dry_run": dry_run,
     }
     try:
-        settings = load_config(
-            config,
-            socket=str(socket) if socket is not None else None,
-        )
+        settings = load_config(config, socket=str(socket) if socket is not None else None)
     except RelayError:
         settings = None
     if settings is not None:
@@ -161,21 +137,12 @@ def publish(
         data = text
         content_type = "text/plain"
     with RelayClient(socket=_client_socket(ctx), timeout=_timeout(ctx)) as client:
-        result = client.publish(
-            topic,
-            data,
-            content_type=content_type,
-            idempotency_key=idempotency_key,
-        )
+        result = client.publish(topic, data, content_type=content_type, idempotency_key=idempotency_key)
     typer.echo(json.dumps({"message_id": result.message_id, "sequence": result.sequence}))
 
 
 @app.command()
-def enqueue(
-    ctx: typer.Context,
-    queue: Annotated[str, typer.Argument(help="Queue name.")],
-    body: Annotated[str, typer.Option("--json", help="JSON payload.")],
-) -> None:
+def enqueue(ctx: typer.Context, queue: Annotated[str, typer.Argument(help="Queue name.")], body: Annotated[str, typer.Option("--json", help="JSON payload.")]) -> None:
     """Enqueue one job and print its id."""
     try:
         data: object = json.loads(body)
@@ -293,19 +260,13 @@ def queue_list(ctx: typer.Context) -> None:
 
 
 @queue_app.command("show")
-def queue_show(
-    ctx: typer.Context,
-    name: Annotated[str, typer.Argument(help="Queue name.")],
-) -> None:
+def queue_show(ctx: typer.Context, name: Annotated[str, typer.Argument(help="Queue name.")]) -> None:
     """Print one queue and its counts."""
     typer.echo(json.dumps(_queue_record(ctx, name)))
 
 
 @queue_app.command("stats")
-def queue_stats(
-    ctx: typer.Context,
-    name: Annotated[str, typer.Argument(help="Queue name.")],
-) -> None:
+def queue_stats(ctx: typer.Context, name: Annotated[str, typer.Argument(help="Queue name.")]) -> None:
     """Print pending, leased, retry, and dead counts for one queue."""
     record = _queue_record(ctx, name)
     typer.echo(
@@ -324,22 +285,14 @@ def queue_stats(
 
 
 @queue_app.command("inspect")
-def queue_inspect(
-    ctx: typer.Context,
-    name: Annotated[str, typer.Argument(help="Queue name.")],
-    limit: Annotated[int, typer.Option("--limit", help="Maximum jobs to print.")] = 50,
-) -> None:
+def queue_inspect(ctx: typer.Context, name: Annotated[str, typer.Argument(help="Queue name.")], limit: Annotated[int, typer.Option("--limit", help="Maximum jobs to print.")] = 50) -> None:
     """Print jobs on a queue, including failure details."""
     with RelayClient(socket=_client_socket(ctx), timeout=_timeout(ctx)) as client:
         typer.echo(json.dumps(client.inspect(name, limit)))
 
 
 @queue_app.command("retry")
-def queue_retry(
-    ctx: typer.Context,
-    name: Annotated[str, typer.Argument(help="Queue the job is on now.")],
-    message: Annotated[str, typer.Option("--message", help="Job id to queue again.")],
-) -> None:
+def queue_retry(ctx: typer.Context, name: Annotated[str, typer.Argument(help="Queue the job is on now.")], message: Annotated[str, typer.Option("--message", help="Job id to queue again.")]) -> None:
     """Put a dead-lettered job back on its original queue."""
     with RelayClient(socket=_client_socket(ctx), timeout=_timeout(ctx)) as client:
         found = client.message(message).get("job")
@@ -350,11 +303,7 @@ def queue_retry(
 
 
 @queue_app.command("purge")
-def queue_purge(
-    ctx: typer.Context,
-    name: Annotated[str, typer.Argument(help="Queue name.")],
-    yes: Annotated[bool, typer.Option("--yes", help="Delete without prompting.")] = False,
-) -> None:
+def queue_purge(ctx: typer.Context, name: Annotated[str, typer.Argument(help="Queue name.")], yes: Annotated[bool, typer.Option("--yes", help="Delete without prompting.")] = False) -> None:
     """Delete jobs on a queue that are not currently leased."""
     preview = _flag(ctx, "dry_run")
     if not preview:
@@ -389,21 +338,14 @@ def topic_list(ctx: typer.Context) -> None:
 
 
 @topic_app.command("show")
-def topic_show(
-    ctx: typer.Context,
-    name: Annotated[str, typer.Argument(help="Topic name.")],
-) -> None:
+def topic_show(ctx: typer.Context, name: Annotated[str, typer.Argument(help="Topic name.")]) -> None:
     """Print recent events for one topic."""
     with RelayClient(socket=_client_socket(ctx), timeout=_timeout(ctx)) as client:
         typer.echo(json.dumps(client.history(name, 50)))
 
 
 @topic_app.command("history")
-def topic_history(
-    ctx: typer.Context,
-    name: Annotated[str, typer.Argument(help="Topic name.")],
-    limit: Annotated[int, typer.Option("--limit", help="Maximum events to print.")] = 50,
-) -> None:
+def topic_history(ctx: typer.Context, name: Annotated[str, typer.Argument(help="Topic name.")], limit: Annotated[int, typer.Option("--limit", help="Maximum events to print.")] = 50) -> None:
     """Print stored events for one topic."""
     with RelayClient(socket=_client_socket(ctx), timeout=_timeout(ctx)) as client:
         typer.echo(json.dumps(client.history(name, limit)))
@@ -416,10 +358,7 @@ def subscription_list(ctx: typer.Context) -> None:
 
 
 @subscription_app.command("show")
-def subscription_show(
-    ctx: typer.Context,
-    name: Annotated[str, typer.Argument(help="Subscription name.")],
-) -> None:
+def subscription_show(ctx: typer.Context, name: Annotated[str, typer.Argument(help="Subscription name.")]) -> None:
     """Print one durable subscription."""
     rows = _status(ctx).get("subscriptions", [])
     if isinstance(rows, list):
@@ -431,11 +370,7 @@ def subscription_show(
 
 
 @subscription_app.command("create")
-def subscription_create(
-    ctx: typer.Context,
-    name: Annotated[str, typer.Argument(help="Subscription name.")],
-    pattern: Annotated[str, typer.Argument(help="Topic pattern.")],
-) -> None:
+def subscription_create(ctx: typer.Context, name: Annotated[str, typer.Argument(help="Subscription name.")], pattern: Annotated[str, typer.Argument(help="Topic pattern.")]) -> None:
     """Create a durable subscription at the latest event."""
     with RelayClient(socket=_client_socket(ctx), timeout=_timeout(ctx)) as client:
         typer.echo(json.dumps(client.create_subscription(name, pattern)))
@@ -464,9 +399,7 @@ def subscription_reset(
 
 @subscription_app.command("delete")
 def subscription_delete(
-    ctx: typer.Context,
-    name: Annotated[str, typer.Argument(help="Subscription name.")],
-    yes: Annotated[bool, typer.Option("--yes", help="Delete without prompting.")] = False,
+    ctx: typer.Context, name: Annotated[str, typer.Argument(help="Subscription name.")], yes: Annotated[bool, typer.Option("--yes", help="Delete without prompting.")] = False
 ) -> None:
     """Delete a durable subscription."""
     if _flag(ctx, "dry_run"):
@@ -505,10 +438,7 @@ def storage_check(ctx: typer.Context) -> None:
 
 
 @storage_app.command("backup")
-def storage_backup(
-    ctx: typer.Context,
-    destination: Annotated[Path, typer.Argument(help="Where to write the copy.")],
-) -> None:
+def storage_backup(ctx: typer.Context, destination: Annotated[Path, typer.Argument(help="Where to write the copy.")]) -> None:
     """Copy the live database."""
     with RelayClient(socket=_client_socket(ctx), timeout=_timeout(ctx)) as client:
         client.backup(destination)
@@ -521,11 +451,7 @@ def daemon_start(ctx: typer.Context) -> None:
     config = _settings(ctx)
     socket = _client_socket(ctx)
     config_path = _obj(ctx).get("config")
-    pid = start(
-        config,
-        config_path=config_path if isinstance(config_path, Path) else None,
-        socket=socket,
-    )
+    pid = start(config, config_path=config_path if isinstance(config_path, Path) else None, socket=socket)
     typer.echo(json.dumps({"pid": pid, "pid_file": str(pid_file(config))}))
 
 
@@ -543,11 +469,7 @@ def daemon_restart(ctx: typer.Context) -> None:
     with contextlib.suppress(RelayError):
         stop(config)
     config_path = _obj(ctx).get("config")
-    pid = start(
-        config,
-        config_path=config_path if isinstance(config_path, Path) else None,
-        socket=_client_socket(ctx),
-    )
+    pid = start(config, config_path=config_path if isinstance(config_path, Path) else None, socket=_client_socket(ctx))
     typer.echo(json.dumps({"pid": pid}))
 
 
@@ -767,10 +689,7 @@ def _settings(ctx: typer.Context):
     obj = _obj(ctx)
     socket = obj.get("socket")
     config_path = obj.get("config")
-    return load_config(
-        config_path if isinstance(config_path, Path) else None,
-        socket=str(socket) if isinstance(socket, Path) else None,
-    )
+    return load_config(config_path if isinstance(config_path, Path) else None, socket=str(socket) if isinstance(socket, Path) else None)
 
 
 def _client_socket(ctx: typer.Context) -> Path:
